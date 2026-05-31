@@ -1,5 +1,4 @@
-import React from 'react';
-import { Bell, AlertTriangle, Package } from 'lucide-react';
+import { Bell, Package } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import {
     DropdownMenu,

@@ -1,4 +1,4 @@
-module.exports = {
+export default {
     "name": "ActivityLog",
     "type": "object",
     "properties": {

@@ -1,4 +1,4 @@
-module.exports = {
+export default {
     name: "SalaryPayment",
     type: "object",
     properties: {

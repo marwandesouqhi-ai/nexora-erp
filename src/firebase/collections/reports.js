@@ -1,14 +1,12 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/api/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Package } from 'lucide-react';
+import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Reports() {
     // جلب البيانات (المبيعات)
-    const { data: sales = [], isLoading } = useQuery({
+    const { data: sales = [] } = useQuery({
         queryKey: ['sales-reports'],
         queryFn: async () => {
             const snap = await getDocs(collection(db, 'sales'));

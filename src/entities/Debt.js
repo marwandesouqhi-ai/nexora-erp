@@ -1,4 +1,4 @@
-module.exports = {
+export default {
     "name": "Debt",
         "type": "object",
             "properties": {

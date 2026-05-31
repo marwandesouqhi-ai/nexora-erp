@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Camera, X } from "lucide-react";
@@ -19,7 +19,7 @@ export default function BarcodeScanner({ onScanSuccess }) {
         onScanSuccess(decodedText);
         setIsScanning(false);
         if (scanner) { scanner.clear(); }
-      }, (error) => {
+      }, () => {
         // Ignore errors
       });
     }

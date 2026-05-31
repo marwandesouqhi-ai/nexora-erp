@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { db } from '@/api/firebase';
 import { collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trash2, ScanBarcode, Loader2, ShoppingCart, Minus, Plus } from 'lucide-react';
+import { Trash2, ScanBarcode, Loader2, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReactToPrint } from 'react-to-print';
@@ -26,19 +26,7 @@ export default function CreateSaleDialog({ open, onOpenChange, products }) {
     const [barcodeInput, setBarcodeInput] = useState('');
     const [lastSavedSale, setLastSavedSale] = useState(null);
 
-    // --- 1. اختصارات الكيبورد ---
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (open) {
-                if (e.key === 'F10') {
-                    e.preventDefault();
-                    handleSubmit();
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [open, items, customerName, paymentStatus]);
+    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
     const handlePrint = useReactToPrint({
         content: () => printRef.current,
@@ -47,52 +35,6 @@ export default function CreateSaleDialog({ open, onOpenChange, products }) {
             onOpenChange(false);
         }
     });
-
-    const handleBarcodeSubmit = (e) => {
-        e.preventDefault();
-        const product = products.find(p => p.barcode === barcodeInput);
-        if (product) {
-            addItem(product);
-        } else {
-            toast({ title: "المنتج غير موجود", variant: "destructive" });
-        }
-        setBarcodeInput('');
-    };
-
-    const addItem = (product) => {
-        setItems(prev => {
-            const existing = prev.find(item => item.product_id === product.id);
-            const currentQtyInCart = existing ? existing.quantity : 0;
-
-            // التأكد من عدم تجاوز المخزون المتاح
-            if (currentQtyInCart + 1 > product.stock) {
-                toast({ title: "تجاوزت الكمية المتاحة", variant: "destructive" });
-                return prev;
-            }
-
-            if (existing) {
-                return prev.map(item =>
-                    item.product_id === product.id
-                        ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price }
-                        : item
-                );
-            }
-            return [...prev, {
-                product_id: product.id,
-                product_name: product.name,
-                price: Number(product.price),
-                cost_price: Number(product.cost_price || 0),
-                quantity: 1,
-                total: Number(product.price)
-            }];
-        });
-    };
-
-    const removeItem = (id) => {
-        setItems(prev => prev.filter(item => item.product_id !== id));
-    };
-
-    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
     const handleSubmit = async () => {
         if (items.length === 0 || loading) return;
@@ -137,6 +79,64 @@ export default function CreateSaleDialog({ open, onOpenChange, products }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    // --- 1. اختصارات الكيبورد ---
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (open) {
+                if (e.key === 'F10') {
+                    e.preventDefault();
+                    handleSubmit();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [open, handleSubmit]);
+
+    const handleBarcodeSubmit = (e) => {
+        e.preventDefault();
+        const product = products.find(p => p.barcode === barcodeInput);
+        if (product) {
+            addItem(product);
+        } else {
+            toast({ title: "المنتج غير موجود", variant: "destructive" });
+        }
+        setBarcodeInput('');
+    };
+
+    const addItem = (product) => {
+        setItems(prev => {
+            const existing = prev.find(item => item.product_id === product.id);
+            const currentQtyInCart = existing ? existing.quantity : 0;
+
+            // التأكد من عدم تجاوز المخزون المتاح
+            if (currentQtyInCart + 1 > product.stock) {
+                toast({ title: "تجاوزت الكمية المتاحة", variant: "destructive" });
+                return prev;
+            }
+
+            if (existing) {
+                return prev.map(item =>
+                    item.product_id === product.id
+                        ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price }
+                        : item
+                );
+            }
+            return [...prev, {
+                product_id: product.id,
+                product_name: product.name,
+                price: Number(product.price),
+                cost_price: Number(product.cost_price || 0),
+                quantity: 1,
+                total: Number(product.price)
+            }];
+        });
+    };
+
+    const removeItem = (id) => {
+        setItems(prev => prev.filter(item => item.product_id !== id));
     };
 
     return (

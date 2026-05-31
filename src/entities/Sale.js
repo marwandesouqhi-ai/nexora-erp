@@ -1,4 +1,4 @@
-module.exports = {
+export default {
     "name": "Sale",
     "type": "object",
     "properties": {

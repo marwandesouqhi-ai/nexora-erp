@@ -29,7 +29,7 @@ export const recordDebtTransaction = async (debtData) => {
         // 3. تحديث الخزنة (Cashflow)
         // التحصيل من عميل = دخول فلوس (+) | الدفع لمورد = خروج فلوس (-)
         const cashEffect = debtData.type === "customer_collection" ? debtData.amount : -debtData.amount;
-        const cashflowRef = await addDoc(collection(db, "cashflow"), {
+        await addDoc(collection(db, "cashflow"), {
             amount: cashEffect,
             type: debtData.type,
             description: `تسوية دين: ${debtData.partyName}`,

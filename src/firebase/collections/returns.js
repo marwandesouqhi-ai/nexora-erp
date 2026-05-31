@@ -32,7 +32,7 @@ export const createReturnInvoice = async (returnData) => {
         });
 
         // 4. تحديث سجل النشاط (عشان الأدمن يعرف إن حصل مرتجع)
-        const activityRef = await addDoc(collection(db, "activity_logs"), {
+        await addDoc(collection(db, "activity_logs"), {
             action: "مرتجع مبيعات",
             details: `تم إرجاع بضاعة بقيمة ${returnData.totalAmount} للعميل ${returnData.customerName}`,
             timestamp: serverTimestamp(),
