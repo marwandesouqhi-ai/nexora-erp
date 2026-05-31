@@ -1,29 +1,42 @@
-import { db } from "../firebaseConfig";
-import { collection, addDoc, serverTimestamp, getDocs, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { db } from "@/api/firebase";
+import {
+    collection,
+    addDoc,
+    doc,
+    getDoc,
+    getDocs,
+    query,
+    where,
+    orderBy,
+    updateDoc,
+    deleteDoc,
+    serverTimestamp,
+} from "firebase/firestore";
+
+const suppliersCollection = collection(db, "suppliers");
 
 // دالة إضافة مورد جديد
 export const addNewSupplier = async (supplierData) => {
     try {
-        const docRef = await addDoc(collection(db, "suppliers"), {
-            supplier_name: supplierData.name,      // اسم الشركة أو المورد
-            company_branch: supplierData.branch || "", // الفرع أو مندوب الشركة
-            phone: supplierData.phone,            // رقم التواصل
-            email: supplierData.email || "",      // البريد الإلكتروني للمراسلات
-
-            // الحقول المالية الخاصة بالموردين
-            total_purchases_value: 0,             // إجمالي قيمة المشتريات منه
-            current_balance: 0,                   // حساب المورد (لينا ولا علينا)
-
-            // بيانات النشاط
-            category: supplierData.category || "أدوية", // تخصص المورد (أدوية، معدات، إلخ)
-            address: supplierData.address || "",  // عنوان مخازن المورد
-
-            // التوثيق
+        const normalizedBalance = Number(supplierData.current_balance) || 0;
+        const newSupplier = {
+            name: supplierData.name?.trim() || "",
+            company: supplierData.company?.trim() || "",
+            whatsapp: supplierData.whatsapp?.trim() || "",
+            phone: supplierData.phone?.trim() || "",
+            email: supplierData.email?.trim() || "",
+            address: supplierData.address?.trim() || "",
+            notes: supplierData.notes?.trim() || "",
+            category: supplierData.category?.trim() || "عام",
+            current_balance: normalizedBalance,
+            total_purchases_value: 0,
+            is_active: supplierData.is_active !== false,
             created_at: serverTimestamp(),
-            last_transaction_date: null,          // تاريخ آخر فاتورة شراء منه
-            is_active: true,                      // حالة التعامل مع المورد
-            notes: supplierData.notes || ""
-        });
+            updated_at: serverTimestamp(),
+            last_transaction_date: null,
+        };
+
+        const docRef = await addDoc(suppliersCollection, newSupplier);
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error("Error adding supplier: ", error);
@@ -31,14 +44,40 @@ export const addNewSupplier = async (supplierData) => {
     }
 };
 
-// دالة جلب كل الموردين
+// دالة جلب كل الموردين مرتبة بالاسم
 export const getSuppliers = async () => {
     try {
-        const querySnapshot = await getDocs(collection(db, "suppliers"));
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const q = query(suppliersCollection, orderBy("name"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
         console.error("Error getting suppliers: ", error);
         return [];
+    }
+};
+
+// دالة جلب الموردين النشطين فقط
+export async function getActiveSuppliers() {
+    try {
+        const q = query(suppliersCollection, where("is_active", "==", true), orderBy("name"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error getting active suppliers: ", error);
+        return [];
+    }
+}
+
+// دالة جلب مورد حسب المعرف
+export const getSupplierById = async (id) => {
+    try {
+        const docRef = doc(db, "suppliers", id);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) return null;
+        return { id: docSnap.id, ...docSnap.data() };
+    } catch (error) {
+        console.error("Error getting supplier by id: ", error);
+        return null;
     }
 };
 

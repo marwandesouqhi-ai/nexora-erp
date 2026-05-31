@@ -4,66 +4,103 @@ module.exports = {
     "properties": {
         "invoice_number": {
             "type": "string",
-            "description": "Unique Invoice ID (e.g., NEX-2026-0001)"
+            "description": "Unique invoice identifier"
         },
         "customer_id": {
             "type": "string",
-            "description": "Reference to Customer entity"
+            "description": "Reference to the Customer entity"
         },
         "customer_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Customer display name"
         },
         "customer_type": {
-            "type": "string"
+            "type": "string",
+            "description": "Customer segment or classification"
+        },
+        "customer_phone": {
+            "type": "string",
+            "description": "Customer contact number"
         },
         "sales_rep_id": {
             "type": "string",
-            "description": "Employee ID of the sales representative"
+            "description": "ID of the employee who processed the sale"
         },
         "sales_rep_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Sales representative name"
         },
         "items": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
-                    "product_id": { "type": "string" },
-                    "product_name": { "type": "string" },
-                    "unit": { "type": "string" },
-                    "quantity": { "type": "number" },
-                    "price": { "type": "number", "description": "Unit selling price" },
-                    "cost_at_sale": { "type": "number", "description": "Product cost at time of sale for profit calculation" },
-                    "discount_per_unit": { "type": "number", "default": 0 },
-                    "total": { "type": "number" }
+                    "product_id": {
+                        "type": "string"
+                    },
+                    "product_name": {
+                        "type": "string"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "description": "Unit of measure (piece, box, vial, etc.)"
+                    },
+                    "quantity": {
+                        "type": "number"
+                    },
+                    "price": {
+                        "type": "number",
+                        "description": "Sale price per unit"
+                    },
+                    "cost_price": {
+                        "type": "number",
+                        "description": "Cost per unit at time of sale"
+                    },
+                    "discount": {
+                        "type": "number",
+                        "default": 0,
+                        "description": "Per-item discount amount"
+                    },
+                    "total": {
+                        "type": "number",
+                        "description": "Line total after discount"
+                    }
                 },
                 "required": ["product_id", "quantity", "price", "total"]
             }
         },
         "subtotal": {
-            "type": "number"
+            "type": "number",
+            "description": "Total before tax and discounts"
         },
         "total_discount": {
             "type": "number",
-            "default": 0
+            "default": 0,
+            "description": "Total discount applied to the invoice"
         },
         "tax_amount": {
             "type": "number",
             "default": 0,
-            "description": "VAT (14% typical in Egypt)"
+            "description": "VAT or sales tax amount"
         },
-        "total": {
+        "total_amount": {
             "type": "number",
-            "description": "Final amount to be paid"
+            "description": "Final invoice amount"
+        },
+        "total_cost": {
+            "type": "number",
+            "default": 0,
+            "description": "Total cost of goods sold for the invoice"
         },
         "profit_margin": {
             "type": "number",
-            "description": "Calculated: total - total_cost"
+            "description": "Calculated profit: total_amount - total_cost"
         },
-        "payment_method": {
+        "payment_type": {
             "type": "string",
             "enum": ["cash", "bank_transfer", "check", "credit", "instapay"],
-            "default": "cash"
+            "default": "cash",
+            "description": "How the invoice is paid"
         },
         "payment_status": {
             "type": "string",
@@ -74,19 +111,22 @@ module.exports = {
             "type": "number",
             "default": 0
         },
-        "remaining_balance": {
+        "remaining_amount": {
             "type": "number",
-            "description": "Automatically calculated: total - paid_amount"
+            "description": "Amount still due after payments"
         },
         "delivery_status": {
             "type": "string",
             "enum": ["pending", "shipped", "delivered", "returned"],
-            "default": "delivered"
+            "default": "pending"
         },
         "due_date": {
             "type": "string",
             "format": "date",
-            "description": "Crucial for credit sales"
+            "description": "Payment due date for credit sales"
+        },
+        "delivery_address": {
+            "type": "string"
         },
         "notes": {
             "type": "string"
@@ -95,6 +135,14 @@ module.exports = {
             "type": "string",
             "enum": ["confirmed", "draft", "cancelled", "returned"],
             "default": "confirmed"
+        },
+        "created_by": {
+            "type": "string",
+            "description": "User ID or email who recorded the sale"
+        },
+        "updated_by": {
+            "type": "string",
+            "description": "Last editor of the sale record"
         },
         "created_at": {
             "type": "string",
@@ -107,10 +155,9 @@ module.exports = {
     },
     "required": [
         "customer_id",
-        "sales_rep_id",
         "items",
-        "total",
+        "total_amount",
         "payment_status",
         "status"
     ]
-}
+};
