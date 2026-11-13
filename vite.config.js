@@ -1,14 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path' // تأكد من استيراد هذه المكتبة
+import tailwindcss from '@tailwindcss/vite'
+import path from 'path'
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      // هذا السطر هو المسؤول عن حل مشكلة الـ @ في المسارات
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(import.meta.dirname, './src'),
+    },
+  },
+  server: {
+    proxy: {
+      '/api/ultramsg': {
+        target: 'https://api.ultramsg.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/ultramsg/, ''),
+      },
     },
   },
 })

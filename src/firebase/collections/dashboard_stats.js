@@ -1,10 +1,17 @@
 import { db } from "../firebaseConfig";
-import { doc, getDoc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, increment, serverTimestamp } from "firebase/firestore";
+import { getActiveCompanyId } from "@/lib/currentTenant";
+import { withTenant } from "@/lib/tenantFirestore";
+
+const getStatsDocId = (companyId = null) => {
+    const cId = companyId || getActiveCompanyId();
+    return cId ? `today_summary_${cId}` : "today_summary";
+};
 
 // 1. دالة جلب إحصائيات اليوم (للبطاقات اللي فوق في الداشبورد)
-export const getTodayStats = async () => {
+export const getTodayStats = async (companyId = null) => {
     try {
-        const statsRef = doc(db, "dashboard_stats", "today_summary");
+        const statsRef = doc(db, "dashboard_stats", getStatsDocId(companyId));
         const docSnap = await getDoc(statsRef);
 
         if (docSnap.exists()) {
@@ -20,15 +27,17 @@ export const getTodayStats = async () => {
 };
 
 // 2. دالة تحديث الإحصائيات عند كل عملية (تُستدعى برمجياً)
-export const updateLiveStats = async (amount, profit, isSale = true) => {
+export const updateLiveStats = async (amount, profit, isSale = true, companyId = null) => {
     try {
-        const statsRef = doc(db, "dashboard_stats", "today_summary");
-        await updateDoc(statsRef, {
-            "daily_summary.total_sales": increment(isSale ? amount : 0),
-            "daily_summary.net_profit": increment(profit),
-            "daily_summary.invoices_count": increment(isSale ? 1 : 0),
-            "last_sync": serverTimestamp()
-        });
+        const statsRef = doc(db, "dashboard_stats", getStatsDocId(companyId));
+        await setDoc(statsRef, withTenant({
+            "daily_summary": {
+                total_sales: increment(isSale ? amount : 0),
+                net_profit: increment(profit),
+                invoices_count: increment(isSale ? 1 : 0),
+            },
+            last_sync: serverTimestamp()
+        }), { merge: true });
     } catch (error) {
         console.error("Live Stats Update Error: ", error);
     }

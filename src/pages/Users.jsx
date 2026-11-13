@@ -1,315 +1,89 @@
-﻿import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUsers, addUser, updateUser, deleteUserDoc } from '@/firebase/collections/users';
-import { useRole } from '@/lib/RoleContext';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getUsers } from '@/firebase/collections/users';
+import { PERMISSION_GROUPS, ROLE_LABELS, ROLE_OPTIONS, getRolePermissions, useRole } from '@/lib/RoleContext';
 import { useAuth } from '@/lib/AuthContext';
-import { logActivity } from '@/lib/activityLogger';
+import { useTenant } from '@/lib/TenantContext';
+import { createInvitation, listManagedInvitations, resendInvitation, revokeInvitation, updateManagedUserSecure } from '@/services/invitationService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, UserCog, Lock, Search } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { Check, Mail, Pencil, RefreshCw, Search, Shield, UserCog, UserPlus, X } from 'lucide-react';
 
-const roleLabels = { admin: 'Administrator', manager: 'Manager', accountant: 'Accountant', sales: 'Sales' };
-const roleColors = { admin: 'bg-rose-500/10 text-rose-600', manager: 'bg-indigo-500/10 text-indigo-600', accountant: 'bg-amber-500/10 text-amber-600', sales: 'bg-emerald-500/10 text-emerald-600' };
-const statusLabels = { active: 'Active', inactive: 'Inactive' };
-const statusColors = { active: 'bg-emerald-500/10 text-emerald-600', inactive: 'bg-red-500/10 text-red-600' };
-const emptyForm = { name: '', email: '', phone: '', role: 'sales', status: 'active', password: '' };
+import { PageHero, EmptyState } from '@/components/page';
+const emptyInvite = { full_name: '', email: '', job_title: '', role: 'sales_rep', expires_in_hours: '168', permission_overrides: {} };
+const emptyUser = { id: '', name: '', job_title: '', role: 'sales_rep', status: 'active', permission_overrides: {} };
+const stamp = (value) => value?.toDate?.().toLocaleDateString?.('ar-EG') || (value ? new Date(value).toLocaleDateString('ar-EG') : '—');
+const statusTone = (status) => status === 'active' || status === 'accepted' ? 'border-transparent bg-success-soft text-success hover:bg-success-soft' : status === 'pending' ? 'border-transparent bg-warning-soft text-warning hover:bg-warning-soft' : 'border-transparent bg-danger-soft text-danger hover:bg-danger-soft';
+
+function PermissionMatrix({ value, onChange, role }) {
+    const flip = (key) => {
+        const defaults = getRolePermissions(role);
+        const effective = Object.hasOwn(value, key) ? value[key] : defaults[key] === true;
+        const next = { ...value };
+        if (!effective === (defaults[key] === true)) delete next[key];
+        else next[key] = !effective;
+        onChange(next);
+    };
+    return <div className="max-h-72 space-y-3 overflow-y-auto rounded-xl border bg-card-muted p-3">
+        {PERMISSION_GROUPS.map((group) => <div key={group.title} className="rounded-lg bg-card p-3">
+            <p className="mb-2 text-xs font-bold text-muted-foreground">{group.title}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+                {group.permissions.map((permission) => {
+                    const enabled = Object.hasOwn(value, permission.key) ? value[permission.key] : getRolePermissions(role)[permission.key] === true;
+                    return <label key={permission.key} className="flex cursor-pointer items-center gap-2 text-xs"><Checkbox checked={enabled} onCheckedChange={() => flip(permission.key)} />{permission.label}</label>;
+                })}
+            </div>
+        </div>)}
+    </div>;
+}
 
 export default function Users() {
     const { can } = useRole();
-    const { user: currentUser } = useAuth();
+    const { user: actor } = useAuth();
+    const { tenant } = useTenant();
     const { toast } = useToast();
-    const qc = useQueryClient();
+    const queryClient = useQueryClient();
+    const companyId = actor?.company_id || tenant?.id || '';
+    const [search, setSearch] = useState('');
+    const [inviteOpen, setInviteOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+    const [invite, setInvite] = useState(emptyInvite);
+    const [editing, setEditing] = useState(emptyUser);
 
-    const [showDialog, setShowDialog] = useState(false);
-    const [form, setForm] = useState(emptyForm);
-    const [editUser, setEditUser] = useState(null);
-    const [deleteId, setDeleteId] = useState(null);
-    const [searchText, setSearchText] = useState('');
-
-    const { data: users = [], isLoading } = useQuery({
-        queryKey: ['users'],
-        queryFn: getUsers,
-    });
-
-    const createUserMutation = useMutation({
-        mutationFn: addUser,
-        onSuccess: async (_, variables) => {
-            qc.invalidateQueries(['users']);
-            await logActivity({
-                user: currentUser?.uid || currentUser?.email || 'system',
-                action: 'create_user',
-                entity_type: 'User',
-                details: 'Created user: ' + variables.name + ' (' + (roleLabels[variables.role] || variables.role) + ')',
-            });
-            toast({ title: 'User created successfully' });
-            setShowDialog(false);
-            setForm(emptyForm);
-        },
-    });
-
-    const updateUserMutation = useMutation({
-        mutationFn: ({ id, data }) => updateUser(id, data),
-        onSuccess: async (_, variables) => {
-            qc.invalidateQueries(['users']);
-            await logActivity({
-                user: currentUser?.uid || currentUser?.email || 'system',
-                action: 'update_user',
-                entity_type: 'User',
-                details: 'Updated user: ' + variables.data.email + ' (' + (roleLabels[variables.data.role] || variables.data.role) + ')',
-            });
-            toast({ title: 'User updated successfully' });
-            setEditUser(null);
-            setShowDialog(false);
-            setForm(emptyForm);
-        },
-    });
-
-    const deleteUserMutation = useMutation({
-        mutationFn: deleteUserDoc,
-        onSuccess: async (_, userId) => {
-            qc.invalidateQueries(['users']);
-            await logActivity({
-                user: currentUser?.uid || currentUser?.email || 'system',
-                action: 'delete_user',
-                entity_type: 'User',
-                details: 'Deleted user: ' + userId,
-            });
-            toast({ title: 'User deleted successfully' });
-            setDeleteId(null);
-        },
-    });
-
-    if (!can('can_manage_users')) {
-        return <div className="p-20 text-center font-bold text-slate-400">You do not have permission to manage users.</div>;
-    }
-
-    const visibleUsers = users.filter((u) =>
-        (u.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
-        (u.email || '').toLowerCase().includes(searchText.toLowerCase())
-    );
-
-    const openNewUserDialog = () => {
-        setForm(emptyForm);
-        setEditUser(null);
-        setShowDialog(true);
+    const usersQuery = useQuery({ queryKey: ['users', companyId], queryFn: () => getUsers(companyId), enabled: Boolean(companyId) });
+    const invitationsQuery = useQuery({ queryKey: ['invitations', companyId], queryFn: () => listManagedInvitations(companyId), enabled: Boolean(companyId) });
+    const refresh = () => { queryClient.invalidateQueries({ queryKey: ['users', companyId] }); queryClient.invalidateQueries({ queryKey: ['invitations', companyId] }); };
+    const inviteMutation = useMutation({ mutationFn: () => createInvitation({ ...invite, company_id: companyId, expires_in_hours: Number(invite.expires_in_hours) }), onSuccess: () => { toast({ title: 'تم إرسال الدعوة بنجاح' }); setInvite(emptyInvite); setInviteOpen(false); refresh(); }, onError: (error) => toast({ title: 'تعذر إرسال الدعوة', description: error.message, variant: 'destructive' }) });
+    const userMutation = useMutation({ mutationFn: () => updateManagedUserSecure(editing), onSuccess: () => { toast({ title: 'تم تحديث وصول المستخدم' }); setEditOpen(false); refresh(); }, onError: (error) => toast({ title: 'تعذر تحديث المستخدم', description: error.message, variant: 'destructive' }) });
+    const resendMutation = useMutation({ mutationFn: resendInvitation, onSuccess: () => { toast({ title: 'تمت إعادة إرسال الدعوة' }); refresh(); }, onError: (error) => toast({ title: 'تعذر إعادة الإرسال', description: error.message, variant: 'destructive' }) });
+    const revokeMutation = useMutation({ mutationFn: revokeInvitation, onSuccess: () => { toast({ title: 'تم إلغاء الدعوة' }); refresh(); }, onError: (error) => toast({ title: 'تعذر إلغاء الدعوة', description: error.message, variant: 'destructive' }) });
+    const visibleUsers = useMemo(() => (usersQuery.data || []).filter((item) => `${item.name || ''} ${item.email || ''}`.toLowerCase().includes(search.toLowerCase())), [usersQuery.data, search]);
+    const pending = useMemo(() => (invitationsQuery.data || []).filter((item) => item.status === 'pending' || item.status === 'failed'), [invitationsQuery.data]);
+    const toggleAll = (target, setter) => {
+        const next = {};
+        PERMISSION_GROUPS.flatMap((group) => group.permissions).forEach((item) => { next[item.key] = true; });
+        setter({ ...target, permission_overrides: next });
     };
 
-    const openEditUserDialog = (user) => {
-        setEditUser(user);
-        setForm({
-            name: user.name || '',
-            email: user.email || '',
-            phone: user.phone || '',
-            role: user.role || 'sales',
-            status: user.status || 'active',
-            password: '',
-        });
-        setShowDialog(true);
-    };
+    if (!can('can_manage_users')) return <div className="p-12 text-center text-muted-foreground">ليس لديك صلاحية إدارة المستخدمين.</div>;
+    return <div className="space-y-6" dir="rtl">
+        <PageHero className="mb-0" icon={UserCog} tone="slate" title="إدارة المستخدمين" subtitle="دعوات آمنة، أدوار، وصلاحيات لكل منظمة." actions={<Button className="gap-2" onClick={() => setInviteOpen(true)}><UserPlus className="h-4 w-4" />دعوة مستخدم</Button>} />
+        <section className="rounded-2xl border border-border bg-card shadow-card"><div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center md:justify-between"><div className="relative w-full md:max-w-sm"><Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pr-9" placeholder="ابحث بالاسم أو البريد" value={search} onChange={(event) => setSearch(event.target.value)} /></div><Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="ml-1 h-4 w-4" />تحديث</Button></div>
+            <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-card-muted text-right text-xs font-semibold text-muted-foreground"><tr><th className="p-4">المستخدم</th><th className="p-4">المسمى الوظيفي</th><th className="p-4">الدور</th><th className="p-4">الحالة</th><th className="p-4">آخر دخول</th><th className="p-4" /></tr></thead><tbody>
+                {usersQuery.isLoading ? <tr><td colSpan="6" className="p-8 text-center">جارٍ التحميل…</td></tr> : visibleUsers.map((item) => <tr key={item.id} className="border-b border-border transition-colors hover:bg-card-muted/60"><td className="p-4"><p className="font-bold">{item.name || '—'}</p><p className="text-xs text-muted-foreground">{item.email}</p></td><td className="p-4">{item.job_title || '—'}</td><td className="p-4">{ROLE_LABELS[item.role] || item.role}</td><td className="p-4"><Badge className={statusTone(item.status)}>{item.status === 'active' ? 'نشط' : item.status === 'suspended' ? 'موقوف' : item.status || '—'}</Badge></td><td className="p-4">{stamp(item.last_login_at)}</td><td className="p-4">{item.id !== actor?.uid && <Button variant="ghost" size="sm" onClick={() => { setEditing({ id: item.id, name: item.name || '', job_title: item.job_title || '', role: item.role || 'sales_rep', status: item.status || 'active', permission_overrides: item.permission_overrides || {} }); setEditOpen(true); }}><Pencil className="ml-1 h-4 w-4" />تعديل</Button>}</td></tr>)}
+                {!usersQuery.isLoading && visibleUsers.length === 0 && <tr><td colSpan="6"><EmptyState text="لا يوجد مستخدمون." /></td></tr>}
+            </tbody></table></div></section>
+        <section className="rounded-2xl border border-border bg-card shadow-card"><div className="flex items-center gap-3 border-b border-border p-5"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary"><Mail className="h-[18px] w-[18px]" /></span><h2 className="text-base font-bold text-foreground">الدعوات المفتوحة</h2></div><div className="divide-y divide-border">{pending.length ? pending.map((item) => <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between" key={item.id}><div><p className="font-bold">{item.full_name || item.email}</p><p className="text-xs text-muted-foreground">{item.email} · ينتهي {stamp(item.expires_at)}</p></div><div className="flex items-center gap-2"><Badge className={statusTone(item.status)}>{item.status}</Badge><Button size="sm" variant="outline" disabled={resendMutation.isPending} onClick={() => resendMutation.mutate(item.id)}><RefreshCw className="ml-1 h-3 w-3" />إرسال مجددًا</Button><Button size="sm" variant="ghost" className="text-destructive" disabled={revokeMutation.isPending} onClick={() => revokeMutation.mutate(item.id)}><X className="ml-1 h-3 w-3" />إلغاء</Button></div></div>) : <EmptyState icon={Mail} text="لا توجد دعوات معلقة." />}</div></section>
+        <Dialog open={inviteOpen} onOpenChange={setInviteOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>دعوة موظف إلى {tenant?.name || 'المنظمة'}</DialogTitle></DialogHeader><div className="grid gap-4 md:grid-cols-2"><label className="space-y-1 text-sm">الاسم الكامل<Input value={invite.full_name} onChange={(e) => setInvite({ ...invite, full_name: e.target.value })} /></label><label className="space-y-1 text-sm">البريد الإلكتروني *<Input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} /></label><label className="space-y-1 text-sm">المسمى الوظيفي<Input value={invite.job_title} onChange={(e) => setInvite({ ...invite, job_title: e.target.value })} /></label><label className="space-y-1 text-sm">صلاحية الدعوة<Select value={invite.expires_in_hours} onValueChange={(expires_in_hours) => setInvite({ ...invite, expires_in_hours })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="24">24 ساعة</SelectItem><SelectItem value="168">7 أيام</SelectItem><SelectItem value="720">30 يومًا</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm md:col-span-2">الدور<Select value={invite.role} onValueChange={(role) => setInvite({ ...invite, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLE_OPTIONS.filter((role) => role !== 'owner').map((role) => <SelectItem value={role} key={role}>{ROLE_LABELS[role]}</SelectItem>)}</SelectContent></Select></label></div><PermissionEditor target={invite} setter={setInvite} toggleAll={toggleAll} /><Button disabled={!invite.email || inviteMutation.isPending} onClick={() => inviteMutation.mutate()}>{inviteMutation.isPending ? 'جارٍ الإرسال…' : <><Mail className="ml-2 h-4 w-4" />إرسال دعوة آمنة</>}</Button></DialogContent></Dialog>
+        <Dialog open={editOpen} onOpenChange={setEditOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>تعديل وصول المستخدم</DialogTitle></DialogHeader><div className="grid gap-4 md:grid-cols-2"><label className="space-y-1 text-sm">الاسم<Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></label><label className="space-y-1 text-sm">المسمى الوظيفي<Input value={editing.job_title} onChange={(e) => setEditing({ ...editing, job_title: e.target.value })} /></label><label className="space-y-1 text-sm">الدور<Select value={editing.role} onValueChange={(role) => setEditing({ ...editing, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLE_OPTIONS.map((role) => <SelectItem value={role} key={role}>{ROLE_LABELS[role]}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">حالة الحساب<Select value={editing.status} onValueChange={(status) => setEditing({ ...editing, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">نشط</SelectItem><SelectItem value="suspended">موقوف</SelectItem></SelectContent></Select></label></div><PermissionEditor target={editing} setter={setEditing} toggleAll={toggleAll} /><Button disabled={userMutation.isPending} onClick={() => userMutation.mutate()}>{userMutation.isPending ? 'جارٍ الحفظ…' : <><Check className="ml-2 h-4 w-4" />حفظ التغييرات</>}</Button></DialogContent></Dialog>
+    </div>;
+}
 
-    const closeDialog = () => {
-        setShowDialog(false);
-        setEditUser(null);
-        setForm(emptyForm);
-    };
-
-    const isSubmitting = editUser ? updateUserMutation.isLoading : createUserMutation.isLoading;
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-800">Users</h1>
-                    <p className="text-sm text-slate-500 mt-1">Manage users stored in Firestore.</p>
-                </div>
-                <Button onClick={openNewUserDialog} className="rounded-xl bg-slate-900 hover:bg-slate-800 gap-2 shadow-lg">
-                    <UserPlus className="w-4 h-4" /> New user
-                </Button>
-            </div>
-
-            <div className="erp-card">
-                <div className="p-4 border-b border-border">
-                    <div className="relative max-w-md">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by name or email..."
-                            value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
-                            className="pr-10"
-                        />
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-border text-muted-foreground">
-                                <th className="text-right font-semibold px-5 py-3">Name</th>
-                                <th className="text-right font-semibold px-4 py-3">Email</th>
-                                <th className="text-right font-semibold px-4 py-3">Role</th>
-                                <th className="text-right font-semibold px-4 py-3">Status</th>
-                                <th className="text-right font-semibold px-4 py-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">
-                                        Loading users...
-                                    </td>
-                                </tr>
-                            ) : visibleUsers.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">
-                                        No users found.
-                                    </td>
-                                </tr>
-                            ) : (
-                                visibleUsers.map((u) => (
-                                    <tr key={u.id} className="erp-table-row">
-                                        <td className="px-5 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                                                    <span className="text-primary text-xs font-black">{(u.name || u.email || 'U').charAt(0).toUpperCase()}</span>
-                                                </div>
-                                                <span className="font-semibold">{u.name || 'No name'}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                                        <td className="px-4 py-3">
-                                            <Badge className={`px-2 py-1 rounded-full font-semibold ${roleColors[u.role] || 'bg-muted text-muted-foreground'}`}>
-                                                {roleLabels[u.role] || u.role || 'User'}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <Badge className={`px-2 py-1 rounded-full font-semibold ${statusColors[u.status] || 'bg-muted text-muted-foreground'}`}>
-                                                {statusLabels[u.status] || u.status || 'Unknown'}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 justify-end">
-                                                {currentUser?.email !== u.email && (
-                                                    <>
-                                                        <Button variant="ghost" size="sm" className="text-xs" onClick={() => openEditUserDialog(u)}>
-                                                            <UserCog className="w-3 h-3 mr-1" /> Edit
-                                                        </Button>
-                                                        <Button variant="ghost" size="sm" className="text-xs text-rose-500" onClick={() => setDeleteId(u.id)}>
-                                                            <Trash2 className="w-3 h-3 mr-1" /> Delete
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <Dialog open={showDialog} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-                <DialogContent className="rounded-[2.5rem] max-w-lg p-8">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl font-black flex items-center gap-2">
-                            <UserPlus className="text-indigo-600" /> {editUser ? 'Edit user' : 'Add user'}
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid grid-cols-2 gap-4 py-6">
-                        <div className="col-span-2 space-y-1.5">
-                            <label className="text-xs font-black text-slate-500">Name</label>
-                            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-2xl h-12" placeholder="Full name" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-black text-slate-500">Email</label>
-                            <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-2xl h-12" placeholder="email@example.com" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-black text-slate-500">Phone</label>
-                            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="rounded-2xl h-12" placeholder="0100xxxxxxx" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-black text-slate-500">Password</label>
-                            <div className="relative">
-                                <Lock className="absolute right-3 top-3.5 w-4 h-4 text-slate-300" />
-                                <Input
-                                    type="password"
-                                    value={form.password}
-                                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                    className="rounded-2xl h-12 pr-10"
-                                    placeholder={editUser ? 'Leave blank to keep current password' : 'Temporary password'}
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-black text-slate-500">Role</label>
-                            <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
-                                <SelectTrigger className="rounded-2xl h-12"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(roleLabels).map(([val, lbl]) => (
-                                        <SelectItem key={val} value={val}>{lbl}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-black text-slate-500">Status</label>
-                            <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
-                                <SelectTrigger className="rounded-2xl h-12"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <Button
-                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 h-14 rounded-2xl font-black text-lg shadow-lg shadow-indigo-100"
-                            onClick={() => {
-                                const payload = {
-                                    name: form.name.trim(),
-                                    email: form.email.trim(),
-                                    phone: form.phone.trim(),
-                                    role: form.role,
-                                    status: form.status,
-                                };
-                                if (form.password) payload.password = form.password;
-
-                                if (editUser) {
-                                    updateUserMutation.mutate({ id: editUser.id, data: payload });
-                                } else {
-                                    createUserMutation.mutate(payload);
-                                }
-                            }}
-                            disabled={isSubmitting || !form.email || !form.name}
-                        >
-                            {isSubmitting ? 'Saving...' : editUser ? 'Update user' : 'Create user'}
-                        </Button>
-                        <Button variant="ghost" onClick={closeDialog} className="h-14 rounded-2xl px-6 italic">Cancel</Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-                <AlertDialogContent className="rounded-[2rem] max-w-sm">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="font-black text-xl">Confirm delete</AlertDialogTitle>
-                        <AlertDialogDescription>Are you sure you want to remove this user? This action cannot be undone.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2">
-                        <AlertDialogCancel className="rounded-xl font-bold">Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteUserMutation.mutate(deleteId)} className="bg-rose-600 hover:bg-rose-700 rounded-xl font-bold px-8">Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
-    );
+function PermissionEditor({ target, setter, toggleAll }) {
+    return <div className="space-y-2"><div className="flex items-center justify-between"><p className="flex items-center gap-1 text-sm font-bold"><Shield className="h-4 w-4" />صلاحيات مخصصة</p><div className="flex gap-2"><Button variant="ghost" size="sm" onClick={() => setter({ ...target, permission_overrides: {} })}>مسح</Button><Button variant="ghost" size="sm" onClick={() => toggleAll(target, setter)}>تحديد الكل</Button></div></div><PermissionMatrix value={target.permission_overrides} role={target.role} onChange={(permission_overrides) => setter({ ...target, permission_overrides })} /></div>;
 }

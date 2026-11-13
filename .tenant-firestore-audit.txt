@@ -1,0 +1,307 @@
+src\components\sales\CreateSaleDialog.jsx:412:                const customerRef = selectedCustomerId ? doc(db, 'customers', selectedCustomerId) : null;
+src\components\sales\CreateSaleDialog.jsx:420:                    const productRef = doc(
+src\components\sales\CreateSaleDialog.jsx:490:                    transaction.set(doc(collection(db, 'inventory_movements')), {
+src\components\sales\CreateSaleDialog.jsx:502:                        transaction.set(doc(collection(db, 'notifications')), {
+src\components\sales\CreateSaleDialog.jsx:517:                const salesRef = doc(
+src\components\sales\CreateSaleDialog.jsx:518:                    collection(db, 'sales')
+src\components\sales\CreateSaleDialog.jsx:536:                    transaction.set(doc(collection(db, 'debts')), {
+src\components\sales\CreateSaleDialog.jsx:556:                    const accountRef = doc(db, 'accounts', accountId);
+src\components\sales\CreateSaleDialog.jsx:560:                    transaction.set(doc(collection(db, 'cashflow')), {
+src\services\assistantInvoiceService.js:24:    const byNumber = await getDocs(query(
+src\services\assistantInvoiceService.js:25:        collection(db, 'sales'),
+src\services\assistantInvoiceService.js:26:        where('invoice_number', '==', normalized)
+src\services\assistantInvoiceService.js:32:    const direct = await getDoc(doc(db, 'sales', normalized));
+src\services\assistantInvoiceService.js:68:        await updateDoc(doc(db, 'sales', sale.id), allowed);
+src\services\assistantInvoiceService.js:72:    const debts = await getDocs(query(collection(db, 'debts'), where('source_id', '==', sale.id)));
+src\services\assistantInvoiceService.js:74:        transaction.update(doc(db, 'sales', sale.id), allowed);
+src\services\assistantInvoiceService.js:78:            transaction.update(doc(db, 'customers', sale.customer_id), {
+src\services\assistantInvoiceService.js:94:            transaction.update(doc(db, 'accounts', sale.account_id), {
+src\services\assistantInvoiceService.js:100:        transaction.set(doc(collection(db, 'activity_logs')), {
+src\services\assistantInvoiceService.js:116:    const debts = await getDocs(query(collection(db, 'debts'), where('source_id', '==', sale.id)));
+src\services\assistantInvoiceService.js:119:        const saleRef = doc(db, 'sales', sale.id);
+src\services\assistantInvoiceService.js:129:            const productRef = doc(db, 'products', item.product_id || item.id);
+src\services\assistantInvoiceService.js:140:            transaction.update(doc(db, 'customers', currentSale.customer_id), {
+src\services\assistantInvoiceService.js:149:            transaction.update(doc(db, 'accounts', currentSale.account_id), {
+src\services\assistantInvoiceService.js:157:        transaction.set(doc(collection(db, 'activity_logs')), {
+src\services\assistantInvoiceService.js:207:        const custQuery = await getDocs(query(collection(db, 'customers'), where('name', '==', customerName.trim())));
+src\services\assistantInvoiceService.js:215:    const accQuery = await getDocs(query(collection(db, 'accounts'), where('type', '==', 'cash')));
+src\services\assistantInvoiceService.js:235:        await addDoc(collection(db, 'activity_logs'), {
+src\hooks\useNotifications.js:25:        const q = query(collection(db, 'products'), where('quantity', '<=', 5));
+src\hooks\useNotifications.js:27:        const unsubscribe = onSnapshot(q, (snapshot) => {
+src\hooks\useNotifications.js:57:        const notifQuery = query(
+src\hooks\useNotifications.js:58:            collection(db, 'notifications'),
+src\hooks\useNotifications.js:59:            where('is_read', '==', false),
+src\hooks\useNotifications.js:64:        const unsubscribe = onSnapshot(
+src\hooks\useNotifications.js:92:                const fallbackQ = query(
+src\hooks\useNotifications.js:93:                    collection(db, 'notifications'),
+src\hooks\useNotifications.js:94:                    where('is_read', '==', false),
+src\hooks\useNotifications.js:97:                return onSnapshot(fallbackQ, (snap) => {
+src\hooks\useNotifications.js:117:            await updateDoc(doc(db, 'notifications', id), { is_read: true });
+src\hooks\useNotifications.js:129:                    batch.update(doc(db, 'notifications', item.id), { is_read: true });
+src\services\GenericService.js:20:            const docRef = await addDoc(collection(db, collectionName), {
+src\services\GenericService.js:35:            const querySnapshot = await getDocs(collection(db, collectionName));
+src\services\GenericService.js:46:            const docRef = doc(db, collectionName, id);
+src\services\GenericService.js:47:            await updateDoc(docRef, {
+src\services\GenericService.js:61:            await deleteDoc(doc(db, collectionName, id));
+src\services\GenericService.js:72:            const docSnap = await getDoc(doc(db, collectionName, id));
+src\services\GenericService.js:87:            let q = collection(db, collectionName);
+src\services\GenericService.js:93:                q = query(q, ...queryConstraints);
+src\services\GenericService.js:95:            const snapshot = await getDocs(q);
+src\hooks\use-mobile.jsx:23:                    const userDoc = doc(db, "users", user.uid)
+src\hooks\use-mobile.jsx:24:                    await updateDoc(userDoc, {
+src\services\notificationService.js:35:        await addDoc(collection(db, 'notifications'), {
+src\services\notificationService.js:92:        await addDoc(collection(db, 'notifications'), {
+src\services\assistantDataService.js:53:        const snap = await getDocs(
+src\services\assistantDataService.js:54:            query(collection(db, 'products'), orderBy('product_name'), limit(200))
+src\services\assistantDataService.js:83:        const snap = await getDocs(
+src\services\assistantDataService.js:84:            query(collection(db, 'products'), orderBy('product_name'), limit(200))
+src\services\assistantDataService.js:119:            snap = await getDocs(
+src\services\assistantDataService.js:120:                query(
+src\services\assistantDataService.js:121:                    collection(db, 'debts'),
+src\services\assistantDataService.js:122:                    where('remaining_amount', '>', 0),
+src\services\assistantDataService.js:129:            snap = await getDocs(query(collection(db, 'debts'), limit(100)));
+src\services\assistantDataService.js:196:        const snap = await getDocs(
+src\services\assistantDataService.js:197:            query(
+src\services\assistantDataService.js:198:                collection(db, 'sales'),
+src\services\assistantDataService.js:199:                where('created_at', '>=', from),
+src\services\assistantDataService.js:200:                where('created_at', '<=', to),
+src\services\assistantDataService.js:253:        const snap = await getDocs(
+src\services\assistantDataService.js:254:            query(
+src\services\assistantDataService.js:255:                collection(db, 'expenses'),
+src\services\assistantDataService.js:256:                where('created_at', '>=', from),
+src\services\assistantDataService.js:257:                where('created_at', '<=', to),
+src\services\assistantDataService.js:295:        const snap = await getDocs(query(
+src\services\assistantDataService.js:296:            collection(db, 'cashflow'),
+src\services\assistantDataService.js:297:            where('timestamp', '>=', Timestamp.fromDate(fromDate)),
+src\services\assistantDataService.js:313:        const snap = await getDocs(query(collection(db, 'activity_logs'), orderBy('timestamp', 'desc'), limit(maxResults)));
+src\services\assistantDataService.js:342:        const snap = await getDocs(
+src\services\assistantDataService.js:343:            query(collection(db, 'customers'), orderBy('total_purchases', 'desc'), limit(maxResults))
+src\services\assistantDataService.js:373:        const snap = await getDocs(
+src\services\assistantDataService.js:374:            query(collection(db, 'suppliers'), orderBy('name'), limit(maxResults))
+src\services\tenantService.js:26:        const q = query(collection(db, TENANTS_COLLECTION), orderBy('created_at', 'desc'));
+src\services\tenantService.js:27:        const snap = await getDocs(q);
+src\services\tenantService.js:41:        const docRef = doc(db, TENANTS_COLLECTION, tenantId);
+src\services\tenantService.js:42:        const snap = await getDoc(docRef);
+src\services\tenantService.js:68:        const tenantDocRef = doc(collection(db, TENANTS_COLLECTION));
+src\services\tenantService.js:113:        await setDoc(tenantDocRef, newTenant);
+src\services\tenantService.js:138:            const userRef = doc(db, 'users', ownerData.uid);
+src\services\tenantService.js:139:            await setDoc(userRef, {
+src\services\tenantService.js:217:        await setDoc(doc(db, 'users', uid), userDoc, { merge: true });
+src\services\tenantService.js:221:            await updateDoc(doc(db, TENANTS_COLLECTION, tenantId), {
+src\services\tenantService.js:257:        const q = query(collection(db, 'users'), where('company_id', '==', tenantId));
+src\services\tenantService.js:258:        const snap = await getDocs(q);
+src\services\tenantService.js:309:        await updateDoc(doc(db, TENANTS_COLLECTION, tenantId), updateData);
+src\services\tenantService.js:324:        const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+src\services\tenantService.js:325:        await updateDoc(tenantRef, {
+src\services\tenantService.js:355:        const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+src\services\tenantService.js:356:        await updateDoc(tenantRef, {
+src\services\tenantService.js:376:        const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+src\services\tenantService.js:377:        await updateDoc(tenantRef, {
+src\services\tenantService.js:403:        const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+src\services\tenantService.js:404:        await updateDoc(tenantRef, {
+src\services\tenantService.js:424:        const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+src\services\tenantService.js:425:        await updateDoc(tenantRef, {
+src\firebase\collections\accounts.js:8:        const docRef = await addDoc(collection(db, "accounts"), withTenant({
+src\firebase\collections\accounts.js:40:        const docRef = doc(db, "accounts", id);
+src\firebase\collections\accounts.js:41:        await updateDoc(docRef, {
+src\firebase\collections\accounts.js:56:        await deleteDoc(doc(db, "accounts", id));
+src\lib\activityLogger.js:40:        await addDoc(collection(db, 'activity_logs'), withTenant({
+src\firebase\collections\activity_logs.js:8:        await addDoc(collection(db, "activity_logs"), withTenant({
+src\firebase\collections\cashflow.js:8:        const cashRef = await addDoc(collection(db, "cashflow"), withTenant({
+src\firebase\collections\dashboard_stats.js:14:        const statsRef = doc(db, "dashboard_stats", getStatsDocId(companyId));
+src\firebase\collections\dashboard_stats.js:15:        const docSnap = await getDoc(statsRef);
+src\firebase\collections\dashboard_stats.js:32:        const statsRef = doc(db, "dashboard_stats", getStatsDocId(companyId));
+src\firebase\collections\dashboard_stats.js:33:        await setDoc(statsRef, withTenant({
+src\firebase\collections\customers.js:12:const customersCollection = collection(db, "customers");
+src\firebase\collections\customers.js:108:        const docRef = await addDoc(customersCollection, customer);
+src\firebase\collections\customers.js:178:        const docRef = doc(db, "customers", id);
+src\firebase\collections\customers.js:180:        await updateDoc(docRef, updatePayload);
+src\firebase\collections\customers.js:204:        await deleteDoc(doc(db, "customers", id));
+src\firebase\collections\attendance.js:26:        const ref = await addDoc(collection(db, "attendance"), withTenant({
+src\firebase\collections\attendance.js:59:        await updateDoc(doc(db, "attendance", attendanceId), updateData);
+src\firebase\collections\attendance.js:70:        const ref = await addDoc(collection(db, "attendance"), withTenant({
+src\firebase\collections\attendance.js:97:        await deleteDoc(doc(db, "attendance", attendanceId));
+src\firebase\collections\attendance.js:139:        const q = createTenantQuery("attendance", where("date", "==", date));
+src\firebase\collections\attendance.js:140:        return onSnapshot(
+src\firebase\collections\attendance.js:184:        const ref = doc(db, "attendance", attendanceId);
+src\firebase\collections\attendance.js:189:        await updateDoc(ref, payload);
+src\firebase\collections\attendance.js:200:        const ref = doc(db, "attendance", attendanceId);
+src\firebase\collections\attendance.js:201:        await updateDoc(ref, {
+src\firebase\collections\employees.js:25:        const ref = await addDoc(collection(db, 'employees'), payload);
+src\firebase\collections\employees.js:47:        const ref = doc(db, 'employees', id);
+src\firebase\collections\employees.js:48:        await updateDoc(ref, {
+src\firebase\collections\employees.js:65:        await deleteDoc(doc(db, 'employees', id));
+src\pages\ActivityLog.jsx:43:            const logsQuery = query(collection(db, 'activity_logs'), orderBy('timestamp', 'desc'));
+src\pages\ActivityLog.jsx:44:            const snapshot = await getDocs(logsQuery);
+src\firebase\collections\daily_reconciliations.js:86:        return onSnapshot(
+src\firebase\collections\daily_reconciliations.js:115:    const docRef = doc(db, RECONCILIATIONS_COLLECTION, recordId);
+src\firebase\collections\daily_reconciliations.js:122:    await updateDoc(docRef, payload);
+src\firebase\collections\daily_reconciliations.js:129:    const colRef = collection(db, RECONCILIATIONS_COLLECTION);
+src\firebase\collections\daily_reconciliations.js:142:    const res = await addDoc(colRef, payload);
+src\firebase\collections\debts.js:18:        batch.set(doc(collection(db, 'debts')), withTenant({
+src\firebase\collections\debts.js:40:        batch.set(doc(collection(db, 'debts')), withTenant({
+src\firebase\collections\debts.js:80:        const debtRef = await addDoc(collection(db, "debts"), payload);
+src\firebase\collections\debts.js:90:        const debtRef = await addDoc(collection(db, "debts"), withTenant({
+src\firebase\collections\debts.js:101:        const partyRef = doc(db, targetCollection, debtData.partyId);
+src\firebase\collections\debts.js:102:        await updateDoc(partyRef, {
+src\firebase\collections\debts.js:108:        await addDoc(collection(db, "cashflow"), withTenant({
+src\firebase\collections\debts.js:134:        const docRef = doc(db, "debts", id);
+src\firebase\collections\debts.js:138:        await updateDoc(docRef, {
+src\firebase\collections\debts.js:155:        const docRef = doc(db, "debts", id);
+src\firebase\collections\debts.js:171:            const partyRef = existing.party_id ? doc(db, partyCollection, existing.party_id) : null;
+src\firebase\collections\debts.js:189:            transaction.set(doc(collection(db, 'cashflow')), withTenant({
+src\firebase\collections\debts.js:207:        await deleteDoc(doc(db, "debts", id));
+src\lib\tenantFirestore.js:20:export const getColRef = (collectionName) => collection(db, collectionName);
+src\lib\tenantFirestore.js:39:    const colRef = collection(db, collectionName);
+src\lib\tenantFirestore.js:42:        return query(colRef, where('company_id', '==', '__NO_TENANT_ACCESS__'));
+src\lib\tenantFirestore.js:44:    return query(colRef, where('company_id', '==', activeCompanyId), ...additionalConstraints);
+src\lib\tenantFirestore.js:66:    const colRef = collection(db, collectionName);
+src\lib\tenantFirestore.js:71:            const orderedQuery = query(colRef, where('company_id', '==', targetCompanyId), orderByConstraint);
+src\lib\tenantFirestore.js:72:            const snap = await getDocs(orderedQuery);
+src\lib\tenantFirestore.js:85:        const simpleQuery = query(colRef, where('company_id', '==', targetCompanyId));
+src\lib\tenantFirestore.js:86:        const snap = await getDocs(simpleQuery);
+src\lib\tenantFirestore.js:103:    return await addDoc(collection(db, collectionName), payload);
+src\lib\tenantFirestore.js:108:    const docRef = doc(db, collectionName, docId);
+src\lib\tenantFirestore.js:109:    return await setDoc(docRef, payload, { merge });
+src\firebase\collections\field_expenses.js:52:        return onSnapshot(
+src\firebase\collections\field_expenses.js:81:            const expenseRef = doc(db, FIELD_EXPENSES_COLLECTION, expenseId);
+src\firebase\collections\field_expenses.js:92:                accountRef = doc(db, "accounts", accountId);
+src\firebase\collections\field_expenses.js:117:                const cashflowRef = doc(collection(db, "cashflow"));
+src\firebase\collections\field_expenses.js:131:            const statsRef = doc(db, "dashboard_stats", "today_summary");
+src\firebase\collections\field_expenses.js:170:        const expenseRef = doc(db, FIELD_EXPENSES_COLLECTION, expenseId);
+src\firebase\collections\field_expenses.js:171:        const expenseSnap = await getDocs(query(collection(db, FIELD_EXPENSES_COLLECTION)));
+src\firebase\collections\field_expenses.js:175:        await updateDoc(expenseRef, {
+src\firebase\collections\field_requests.js:72:        return onSnapshot(
+src\firebase\collections\field_requests.js:99:    const docRef = doc(db, FIELD_REQUESTS_COLLECTION, requestId);
+src\firebase\collections\field_requests.js:109:    await updateDoc(docRef, updatePayload);
+src\firebase\collections\field_requests.js:116:    const colRef = collection(db, FIELD_REQUESTS_COLLECTION);
+src\firebase\collections\field_requests.js:123:    const res = await addDoc(colRef, payload);
+src\firebase\collections\expenses.js:22:            const expenseRef = doc(collection(db, "expenses"));
+src\firebase\collections\expenses.js:23:            const statsRef = doc(db, "dashboard_stats", "today_summary");
+src\firebase\collections\expenses.js:24:            const accountRef = accountId ? doc(db, "accounts", accountId) : null;
+src\firebase\collections\expenses.js:51:            transaction.set(doc(collection(db, "cashflow")), withTenant({
+src\firebase\collections\expenses.js:106:            const expenseRef = doc(db, "expenses", id);
+src\firebase\collections\expenses.js:107:            const statsRef = doc(db, "dashboard_stats", "today_summary");
+src\firebase\collections\expenses.js:114:            const previousAccountRef = previousAccountId ? doc(db, "accounts", previousAccountId) : null;
+src\firebase\collections\expenses.js:115:            const nextAccountRef = accountId ? doc(db, "accounts", accountId) : null;
+src\firebase\collections\expenses.js:140:            transaction.set(doc(collection(db, "cashflow")), withTenant({
+src\firebase\collections\expenses.js:169:            const expenseRef = doc(db, "expenses", id);
+src\firebase\collections\expenses.js:170:            const statsRef = doc(db, "dashboard_stats", "today_summary");
+src\firebase\collections\expenses.js:176:            const accountRef = expense.account_id ? doc(db, "accounts", expense.account_id) : null;
+src\firebase\collections\expenses.js:185:            transaction.set(doc(collection(db, "cashflow")), withTenant({
+src\lib\TenantContext.jsx:30:        const companyDocRef = doc(db, 'companies', activeCompanyId);
+src\lib\TenantContext.jsx:31:        const unsubscribe = onSnapshot(
+src\firebase\collections\inventory_adjustments.js:14:            const productRef = doc(db, "products", adjustmentData.productId);
+src\firebase\collections\inventory_adjustments.js:22:            const adjustmentRef = doc(collection(db, "inventory_adjustments"));
+src\firebase\collections\inventory_adjustments.js:23:            const movementRef = doc(collection(db, "inventory_movements"));
+src\firebase\collections\inventory_adjustments.js:24:            const activityRef = doc(collection(db, "activity_logs"));
+src\firebase\collections\inventory_adjustments.js:25:            const statsRef = doc(db, "dashboard_stats", "today_summary");
+src\firebase\collections\manufacturing.js:10:        const orderRef = await addDoc(collection(db, "production_orders"), withTenant({
+src\firebase\collections\manufacturing.js:32:            const orderRef = doc(db, "production_orders", order.id);
+src\firebase\collections\manufacturing.js:40:                ref: doc(db, 'products', material.product_id),
+src\firebase\collections\manufacturing.js:54:            const finishedRef = order.finished_product_id ? doc(db, 'products', order.finished_product_id) : null;
+src\firebase\collections\manufacturing.js:65:                transaction.set(doc(collection(db, 'inventory_movements')), withTenant({
+src\firebase\collections\manufacturing.js:85:                transaction.set(doc(collection(db, 'inventory_movements')), withTenant({
+src\firebase\collections\manufacturing.js:99:            transaction.set(doc(collection(db, 'activity_logs')), withTenant({
+src\firebase\collections\profit_reports.js:8:        const ref = await addDoc(collection(db, "profit_reports"), withTenant({
+src\firebase\collections\payroll_adjustments.js:32:        const ref = await addDoc(collection(db, 'payroll_adjustments'), payload);
+src\firebase\collections\payroll_adjustments.js:43:        const ref = doc(db, 'payroll_adjustments', id);
+src\firebase\collections\payroll_adjustments.js:50:        await updateDoc(ref, payload);
+src\firebase\collections\payroll_adjustments.js:61:        await deleteDoc(doc(db, 'payroll_adjustments', id));
+src\firebase\collections\payroll_adjustments.js:116:        return onSnapshot(
+src\firebase\collections\payroll_adjustments.js:141:        return onSnapshot(
+src\firebase\collections\payroll_adjustments.js:168:            const ref = doc(db, 'payroll_adjustments', id);
+src\firebase\collections\notifications.js:21:        await addDoc(collection(db, "notifications"), withTenant({
+src\firebase\collections\notifications.js:64:        const docRef = doc(db, "notifications", notificationId);
+src\firebase\collections\notifications.js:65:        await updateDoc(docRef, { is_read: true, read: true });
+src\firebase\collections\notifications.js:80:        const ref = await addDoc(collection(db, "notifications"), withTenant({
+src\firebase\collections\receipts.js:51:        return onSnapshot(
+src\firebase\collections\receipts.js:87:            const receiptRef = doc(collection(db, RECEIPTS_COLLECTION));
+src\firebase\collections\receipts.js:91:                const custRef = doc(db, "customers", customerId);
+src\firebase\collections\receipts.js:152:            const accountRef = doc(db, "accounts", accountId);
+src\firebase\collections\receipts.js:164:                const rRef = doc(db, RECEIPTS_COLLECTION, rId);
+src\firebase\collections\receipts.js:176:            const cashflowRef = doc(collection(db, "cashflow"));
+src\firebase\collections\products.js:16:        const docRef = doc(collection(db, "products"));
+src\firebase\collections\products.js:45:        await setDoc(docRef, payload);
+src\firebase\collections\products.js:64:        const docRef = doc(db, "products", id);
+src\firebase\collections\products.js:65:        await updateDoc(docRef, {
+src\firebase\collections\products.js:79:        await deleteDoc(doc(db, "products", id));
+src\firebase\collections\salaryPayments.js:22:        const ref = await addDoc(collection(db, 'salary_payments'), payload);
+src\firebase\collections\salaryPayments.js:48:        const ref = doc(db, 'salary_payments', id);
+src\firebase\collections\salaryPayments.js:49:        await updateDoc(ref, {
+src\firebase\collections\salaryPayments.js:62:        await deleteDoc(doc(db, 'salary_payments', id));
+src\firebase\collections\visits.js:56:        return onSnapshot(
+src\firebase\collections\purchases.js:11:        const invoiceRef = doc(collection(db, "purchases"));
+src\firebase\collections\purchases.js:38:                const productRef = doc(db, "products", item.product_id);
+src\firebase\collections\purchases.js:49:                batch.set(doc(collection(db, "inventory_movements")), withTenant({
+src\firebase\collections\purchases.js:65:            const supplierRef = doc(db, "suppliers", purchaseData.supplier_id);
+src\firebase\collections\purchases.js:75:            const cashflowRef = doc(collection(db, "cashflow"));
+src\firebase\collections\purchases.js:88:            batch.set(doc(collection(db, "debts")), withTenant({
+src\firebase\collections\purchases.js:121:            const purchaseRef = doc(db, "purchases", purchaseId);
+src\firebase\collections\purchases.js:129:                const productRef = doc(db, "products", item.product_id);
+src\firebase\collections\purchases.js:141:                transaction.set(doc(collection(db, "inventory_movements")), withTenant({
+src\firebase\collections\purchases.js:155:                transaction.update(doc(db, "suppliers", purchase.supplier_id), {
+src\firebase\collections\purchases.js:163:                transaction.set(doc(collection(db, "cashflow")), withTenant({
+src\firebase\collections\returns.js:13:            const saleRef = doc(db, "sales", returnData.salesId);
+src\firebase\collections\returns.js:22:            const productRefs = returnData.items.map((item) => ({ item, ref: doc(db, "products", item.id) }));
+src\firebase\collections\returns.js:32:            const returnRef = doc(collection(db, "returns"));
+src\firebase\collections\returns.js:33:            const activityRef = doc(collection(db, "activity_logs"));
+src\firebase\collections\returns.js:51:                transaction.set(doc(collection(db, "inventory_movements")), withTenant({
+src\firebase\collections\returns.js:66:                transaction.update(doc(db, "customers", sale.customer_id), {
+src\firebase\collections\settings.js:17:        const settingsRef = doc(db, "settings", targetDocId);
+src\firebase\collections\settings.js:18:        await setDoc(
+src\firebase\collections\settings.js:82:        const docRef = doc(db, "settings", targetDocId);
+src\firebase\collections\settings.js:83:        const docSnap = await getDoc(docRef);
+src\firebase\collections\settings.js:91:            const defaultRef = doc(db, "settings", "system_config");
+src\firebase\collections\settings.js:92:            const defaultSnap = await getDoc(defaultRef);
+src\firebase\collections\van_inventory.js:37:        const vanRef = doc(db, "van_inventory", vanDocId);
+src\firebase\collections\van_inventory.js:38:        const productRef = doc(db, "products", productId);
+src\firebase\collections\van_inventory.js:82:            const movementRef = doc(collection(db, "inventory_movements"));
+src\firebase\collections\van_inventory.js:97:            const activityRef = doc(collection(db, "activity_logs"));
+src\firebase\collections\van_inventory.js:139:            where("employee_id", "==", employeeId)
+src\firebase\collections\van_inventory.js:141:        return onSnapshot(
+src\firebase\collections\van_inventory.js:183:        const vanRef = doc(db, "van_inventory", vanDocId);
+src\firebase\collections\van_inventory.js:184:        await updateDoc(vanRef, {
+src\firebase\collections\salary_payments.js:34:        const ref = await addDoc(collection(db, 'salary_payments'), payload);
+src\firebase\collections\salary_payments.js:77:        const ref = doc(db, 'salary_payments', id);
+src\firebase\collections\salary_payments.js:86:        await updateDoc(ref, {
+src\firebase\collections\salary_payments.js:106:        await deleteDoc(doc(db, 'salary_payments', id));
+src\firebase\collections\sales.js:327:        const saleRef = doc(
+src\firebase\collections\sales.js:328:            collection(
+src\firebase\collections\sales.js:334:        const customerRef = customerId ? doc(db, 'customers', customerId) : null;
+src\firebase\collections\sales.js:335:        const debtRef = remainingAmount > 0 ? doc(collection(db, 'debts')) : null;
+src\firebase\collections\sales.js:349:                    const productRef = doc(
+src\firebase\collections\sales.js:465:                    transaction.set(doc(collection(db, 'inventory_movements')), withTenant({
+src\firebase\collections\sales.js:478:                        transaction.set(doc(collection(db, 'notifications')), withTenant({
+src\firebase\collections\sales.js:660:            const custRef = doc(db, 'customers', customerId);
+src\firebase\collections\sales.js:661:            await updateDoc(custRef, {
+src\firebase\collections\sales.js:689:            doc(
+src\firebase\collections\sales.js:696:            await getDoc(saleRef);
+src\firebase\collections\sales.js:730:        const saleRef = doc(db, SALES_COLLECTION, id);
+src\firebase\collections\sales.js:731:        const debtsSnapshot = await getDocs(createTenantQuery('debts', where('source_id', '==', id)));
+src\firebase\collections\sales.js:739:                .map((item) => ({ item, ref: doc(db, PRODUCTS_COLLECTION, item.product_id || item.id) }))
+src\firebase\collections\sales.js:757:                transaction.set(doc(collection(db, 'inventory_movements')), withTenant({
+src\firebase\collections\sales.js:772:                transaction.update(doc(db, 'customers', sale.customer_id), {
+src\firebase\collections\sales.js:782:                transaction.update(doc(db, 'accounts', sale.account_id), {
+src\firebase\collections\sales.js:786:                transaction.set(doc(collection(db, 'cashflow')), withTenant({
+src\firebase\collections\sales.js:799:            transaction.set(doc(collection(db, 'activity_logs')), withTenant({
+src\firebase\collections\suppliers.js:13:const suppliersCollection = collection(db, "suppliers");
+src\firebase\collections\suppliers.js:36:        const docRef = await addDoc(suppliersCollection, newSupplier);
+src\firebase\collections\suppliers.js:74:        const docRef = doc(db, "suppliers", id);
+src\firebase\collections\suppliers.js:75:        const docSnap = await getDoc(docRef);
+src\firebase\collections\suppliers.js:87:        const docRef = doc(db, "suppliers", id);
+src\firebase\collections\suppliers.js:88:        await updateDoc(docRef, {
+src\firebase\collections\suppliers.js:102:        await deleteDoc(doc(db, "suppliers", id));
+src\lib\AuthContext.jsx:33:            const userDocRef = doc(db, 'users', currentUser.uid);
+src\lib\AuthContext.jsx:34:            unsubscribeUserDoc = onSnapshot(userDocRef, (snap) => {
+src\pages\CashFlowCalendar.jsx:12:    const snap = await getDocs(query(collection(db, 'cashflow'), orderBy('timestamp', 'desc')));
+src\pages\Returns.jsx:21:    const snap = await getDocs(query(collection(db, 'returns'), orderBy('return_date', 'desc')));
+src\pages\Reports.jsx:18:            const q = query(collection(db, 'sales'), orderBy('created_date', 'desc'));
+src\pages\Reports.jsx:19:            const snap = await getDocs(q);
+src\pages\Inventory.jsx:46:            const q = query(collection(db, 'products'), orderBy('product_name'));
+src\pages\Inventory.jsx:47:            const snapshot = await getDocs(q);
+src\pages\Inventory.jsx:103:                const docRef = doc(db, 'products', editId);
+src\pages\Inventory.jsx:104:                return await updateDoc(docRef, productData);
+src\pages\Inventory.jsx:106:                const docRef = doc(collection(db, 'products'));
+src\pages\Inventory.jsx:107:                await setDoc(docRef, { ...productData, created_at: new Date().toISOString() });
+src\pages\Inventory.jsx:127:        mutationFn: async (id) => await deleteDoc(doc(db, 'products', id)),

@@ -1,46 +1,28 @@
-import { db } from '@/api/firebase';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { functions } from '@/api/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { fetchTenantDocs, withTenant } from '@/lib/tenantFirestore';
 
-const usersCollection = collection(db, 'users');
-
-export const getUsers = async () => {
-    const usersQuery = query(usersCollection, orderBy('created_at', 'desc'));
-    const snapshot = await getDocs(usersQuery);
-    return snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() }));
+export const getUsers = async (companyId = null) => {
+    return await fetchTenantDocs('users', {
+        companyId,
+        sortFn: (a, b) => {
+            const dateA = a.created_at?.toDate?.()?.getTime?.() || 0;
+            const dateB = b.created_at?.toDate?.()?.getTime?.() || 0;
+            return dateB - dateA;
+        },
+    });
 };
 
 export const addUser = async (data) => {
-    const payload = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone || '',
-        role: data.role || 'sales',
-        status: data.status || 'active',
-        temp_password: data.password || '',
-        created_at: serverTimestamp(),
-        updated_at: serverTimestamp(),
-    };
-    const docRef = await addDoc(usersCollection, payload);
-    return { id: docRef.id, ...payload };
+    const payload = withTenant(data);
+    return httpsCallable(functions, 'createManagedUser')(payload);
 };
 
 export const updateUser = async (id, data) => {
-    const payload = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone || '',
-        role: data.role || 'sales',
-        status: data.status || 'active',
-        updated_at: serverTimestamp(),
-    };
-
-    if (data.password) {
-        payload.temp_password = data.password;
-    }
-
-    await updateDoc(doc(db, 'users', id), payload);
+    const payload = withTenant(data);
+    await httpsCallable(functions, 'updateManagedUser')({ id, ...payload });
 };
 
 export const deleteUserDoc = async (id) => {
-    await deleteDoc(doc(db, 'users', id));
+    await httpsCallable(functions, 'deleteManagedUser')({ id });
 };

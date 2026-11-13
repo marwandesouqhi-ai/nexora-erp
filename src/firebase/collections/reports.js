@@ -1,16 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { db } from '@/api/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchTenantDocs } from '@/lib/tenantFirestore';
+import { useTenant } from '@/lib/TenantContext';
 
 export default function Reports() {
+    const { currentCompanyId } = useTenant();
+
     // جلب البيانات (المبيعات)
     const { data: sales = [] } = useQuery({
-        queryKey: ['sales-reports'],
+        queryKey: ['sales-reports', currentCompanyId],
         queryFn: async () => {
-            const snap = await getDocs(collection(db, 'sales'));
-            return snap.docs.map(d => d.data());
+            return await fetchTenantDocs('sales', { companyId: currentCompanyId });
         }
     });
 
@@ -30,7 +31,7 @@ export default function Reports() {
 
     return (
         <div className="p-6 space-y-6" dir="rtl">
-            <h1 className="text-3xl font-black text-slate-800">التقارير المالية</h1>
+            <h1 className="text-3xl font-black text-foreground">التقارير المالية</h1>
 
             {/* Cards الإحصائيات */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -64,7 +65,7 @@ export default function Reports() {
             </div>
 
             {/* الرسم البياني */}
-            <Card className="rounded-2xl border-slate-100 shadow-sm">
+            <Card className="rounded-2xl border-border shadow-sm">
                 <CardHeader>
                     <CardTitle className="text-lg font-bold">تحليل المبيعات والربح</CardTitle>
                 </CardHeader>

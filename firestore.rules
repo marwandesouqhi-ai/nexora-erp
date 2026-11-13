@@ -1,0 +1,523 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userData() {
+      return signedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {};
+    }
+
+    function role() {
+      return userData().get('role', 'sales_rep');
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && (role() == 'super_admin' || userData().get('is_super_admin', false) == true);
+    }
+
+    function userCompany() {
+      return userData().get('company_id', '');
+    }
+
+    function isActiveUser() {
+      return signedIn()
+        && userData().get('is_active', true) == true
+        && !(userData().get('status', 'active') in ['inactive', 'suspended', 'revoked']);
+    }
+
+    // Platform CRM staff have a separate identity boundary from organisation
+    // ERP users. A support account therefore never inherits a company role.
+    function platformStaffData() {
+      return signedIn() && exists(/databases/$(database)/documents/platform_staff/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/platform_staff/$(request.auth.uid)).data
+        : {};
+    }
+
+    function platformRole() {
+      return platformStaffData().get('role', '');
+    }
+
+    function isActivePlatformStaff() {
+      return signedIn()
+        && platformRole() in ['platform_admin', 'billing_admin', 'support_agent']
+        && platformStaffData().get('is_active', true) == true
+        && platformStaffData().get('status', 'active') != 'suspended';
+    }
+
+    function isPlatformAdmin() {
+      return isActivePlatformStaff() && platformRole() == 'platform_admin';
+    }
+
+    function canManageSubscriptions() {
+      return isActivePlatformStaff() && platformRole() in ['platform_admin', 'billing_admin'];
+    }
+
+    // Tenant isolation verification:
+    // Super Admin has global access across all tenants
+    // Regular users can ONLY read and manipulate data belonging to their assigned company
+    function belongsToCompany(data) {
+      return isSuperAdmin() || (isActiveUser() && userCompany() != '' && data.company_id == userCompany());
+    }
+
+    function willBelongToCompany() {
+      return isSuperAdmin() || (isActiveUser() && userCompany() != '' && request.resource.data.company_id == userCompany());
+    }
+
+    function hasRole(roles) {
+      return isActiveUser() && (isSuperAdmin() || role() in roles);
+    }
+
+    function canViewFinancials() {
+      return hasRole(['owner', 'admin', 'accountant']);
+    }
+
+    function canManageFinancials() {
+      return hasRole(['owner', 'admin', 'accountant']);
+    }
+
+    function canManageUsers() {
+      let overrides = userData().get('permission_overrides', {});
+      return isActiveUser() && (
+        isSuperAdmin() ||
+        overrides.get('can_manage_users', false) == true ||
+        (role() in ['owner', 'admin'] && overrides.get('can_manage_users', true) != false)
+      );
+    }
+
+    function isNotificationRecipient(data) {
+      return isActiveUser() && (
+        data.user_id == request.auth.uid ||
+        data.recipient_id == request.auth.uid ||
+        (data.recipient_id is string
+          && exists(/databases/$(database)/documents/employees/$(data.recipient_id))
+          && get(/databases/$(database)/documents/employees/$(data.recipient_id)).data.email == request.auth.token.email) ||
+        (data.recipient_type == 'all_reps' && role() == 'sales_rep')
+      );
+    }
+
+    function safeSelfProfileUpdate() {
+      return signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'phone', 'avatar_url', 'updated_at']);
+    }
+
+    function canViewOperations() {
+      return hasRole(['owner', 'admin', 'manager', 'accountant']);
+    }
+
+    function canManageOperations() {
+      return hasRole(['owner', 'admin', 'manager']);
+    }
+
+    // إدارة الشركات المتعددة (Multi-Tenant Companies)
+    match /companies/{companyId} {
+      allow read, write: if isSuperAdmin();
+      // CRM staff can inspect subscription/customer account metadata only;
+      // no rule below grants them access to tenant ERP records.
+      allow read: if isActivePlatformStaff();
+      allow create, delete: if isPlatformAdmin();
+      allow update: if isPlatformAdmin();
+      allow update: if platformRole() == 'billing_admin'
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['subscription', 'status', 'suspended_reason', 'updated_at']);
+      allow read: if isActiveUser() && userCompany() == companyId;
+      allow update: if isActiveUser() && userCompany() == companyId && role() in ['owner', 'admin']
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscription', 'status', 'suspended_reason']);
+    }
+
+    // CRM staff profiles are provisioned only by trusted Cloud Functions.
+    // They are intentionally not documents in /users.
+    match /platform_staff/{staffId} {
+      allow read: if isActivePlatformStaff();
+      allow create, update, delete: if false;
+    }
+
+    match /platform_audit_logs/{logId} {
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /platform_invoices/{invoiceId} {
+      allow read: if canManageSubscriptions();
+      allow create, update, delete: if canManageSubscriptions();
+    }
+
+    match /platform_tasks/{taskId} {
+      allow read: if isActivePlatformStaff();
+      allow create, delete: if isPlatformAdmin();
+      allow update: if isPlatformAdmin()
+        || (isActivePlatformStaff()
+          && resource.data.assignedTo == request.auth.token.email
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+    }
+
+    match /platform_notifications/{notificationId} {
+      allow read: if isActivePlatformStaff();
+      allow create, delete: if isPlatformAdmin();
+      allow update: if isPlatformAdmin()
+        || (isActivePlatformStaff()
+          && (resource.data.targetUser == request.auth.token.email
+            || resource.data.targetRole == 'all'
+            || resource.data.targetRole == platformRole())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'updated_at']));
+    }
+
+    match /platform_settings/{settingId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // المستخدمين (Users)
+    match /users/{userId} {
+      allow read: if isSuperAdmin()
+        || (isActiveUser() && request.auth.uid == userId)
+        || (canManageUsers() && resource.data.company_id == userCompany());
+      // Access provisioning is Admin-SDK-only Cloud Functions. This prevents a
+      // browser client from creating memberships, assigning roles, or changing
+      // someone else's permissions even if it forges Firestore requests.
+      allow create: if false;
+      allow update: if safeSelfProfileUpdate();
+      allow delete: if false;
+    }
+
+    // Invitation hashes and delivery information are confidential. Public token
+    // verification and all lifecycle changes are performed by Cloud Functions.
+    match /invitations/{invitationId} {
+      allow read, write: if false;
+    }
+
+    // الحسابات والخزن (Accounts)
+    match /accounts/{accountId} {
+      allow read: if canViewFinancials() && belongsToCompany(resource.data);
+      allow create: if canManageFinancials() && willBelongToCompany();
+      allow update, delete: if canManageFinancials() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // المصروفات (Expenses)
+    match /expenses/{expenseId} {
+      allow read: if canViewFinancials() && belongsToCompany(resource.data);
+      allow create: if canManageFinancials() && willBelongToCompany();
+      allow update, delete: if canManageFinancials() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // حركة النقدية (Cashflow)
+    match /cashflow/{entryId} {
+      allow read: if canViewFinancials() && belongsToCompany(resource.data);
+      allow create: if canManageFinancials() && willBelongToCompany();
+      allow update, delete: if canManageFinancials() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // إحصائيات لوحة التحكم (Dashboard Stats)
+    match /dashboard_stats/{statId} {
+      allow read: if isSuperAdmin() || (isActiveUser() && (statId == 'today_summary_' + userCompany() || (resource != null && belongsToCompany(resource.data))));
+      // عزل الشركات: الكتابة على مستند شركتك فقط (لا يمكن الكتابة فوق مستند شركة أخرى)
+      allow write: if isSuperAdmin() || (canManageFinancials() && (statId == 'today_summary_' + userCompany()
+        || (willBelongToCompany() && (resource == null || belongsToCompany(resource.data)))));
+    }
+
+    // سجل النشاط (Activity Logs)
+    match /activity_logs/{logId} {
+      allow read: if hasRole(['owner', 'admin', 'manager', 'accountant']) && belongsToCompany(resource.data);
+      allow create: if isActiveUser() && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin']) && belongsToCompany(resource.data);
+    }
+
+    // سجل التدقيق الإداري (Audit Logs)
+    match /audit_logs/{logId} {
+      // عزل الشركات: owner/admin يقرأ سجلات شركته فقط (كان يقرأ سجلات كل الشركات)
+      allow read: if isSuperAdmin() || (hasRole(['owner', 'admin']) && belongsToCompany(resource.data));
+      allow create, update, delete: if false;
+    }
+
+    // المنتجات والمخزون (Products)
+    match /products/{productId} {
+      allow read: if isActiveUser() && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany();
+      allow update: if ((hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany())
+        || (role() == 'sales_rep'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'current_stock', 'last_update', 'updated_at'])))
+        && belongsToCompany(resource.data);
+      allow delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data);
+    }
+
+    // المبيعات والفواتير (Sales)
+    match /sales/{saleId} {
+      allow read: if isActiveUser() && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant', 'sales_rep']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // الفواتير (Invoices) - نفس صلاحيات المبيعات
+    match /invoices/{invoiceId} {
+      allow read: if isActiveUser() && (isSuperAdmin() || belongsToCompany(resource.data));
+      allow create: if isActiveUser() && (isSuperAdmin() || willBelongToCompany());
+      // عزل الشركات: التعديل لا يسمح بنقل الفاتورة لشركة أخرى
+      allow update: if isActiveUser() && (isSuperAdmin() || (hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany()));
+      allow delete: if isActiveUser() && (isSuperAdmin() || (hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data)));
+    }
+
+    // العملاء (Customers)
+    match /customers/{customerId} {
+      allow read: if signedIn() && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant', 'sales_rep']) && willBelongToCompany();
+      allow update: if hasRole(['owner', 'admin', 'accountant', 'sales_rep']) && belongsToCompany(resource.data) && willBelongToCompany();
+      allow delete: if hasRole(['owner', 'admin']) && belongsToCompany(resource.data);
+    }
+
+    // الموردين (Suppliers)
+    match /suppliers/{supplierId} {
+      allow read: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // المشتريات (Purchases)
+    match /purchases/{purchaseId} {
+      allow read: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // الموظفين (Employees)
+    match /employees/{employeeId} {
+      allow read: if (hasRole(['owner', 'admin', 'manager', 'accountant']) && belongsToCompany(resource.data))
+        || (isActiveUser() && resource.data.email == request.auth.token.email);
+      allow create: if canManageOperations() && willBelongToCompany();
+      allow update, delete: if canManageOperations() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // الحضور والانصراف (Attendance)
+    match /attendance/{attendanceId} {
+      allow read: if (hasRole(['owner', 'admin', 'manager', 'accountant']) && belongsToCompany(resource.data))
+        || (isActiveUser()
+          && belongsToCompany(resource.data)
+          && get(/databases/$(database)/documents/employees/$(resource.data.employee_id)).data.email == request.auth.token.email);
+      allow create: if ((hasRole(['owner', 'admin', 'manager', 'accountant']))
+        || (isActiveUser()
+          && role() == 'sales_rep'
+          && get(/databases/$(database)/documents/employees/$(request.resource.data.employee_id)).data.email == request.auth.token.email))
+        && willBelongToCompany();
+      allow update: if ((hasRole(['owner', 'admin', 'manager', 'accountant']))
+        || (isActiveUser()
+          && role() == 'sales_rep'
+          && get(/databases/$(database)/documents/employees/$(resource.data.employee_id)).data.email == request.auth.token.email
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['check_out', 'check_out_lat', 'check_out_lng', 'check_out_accuracy', 'status'])))
+        && belongsToCompany(resource.data) && willBelongToCompany();
+      allow delete: if hasRole(['owner', 'admin', 'manager', 'accountant']) && belongsToCompany(resource.data);
+    }
+
+    // تسويات المرتبات (Payroll Adjustments)
+    match /payroll_adjustments/{adjustmentId} {
+      allow read: if (hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data))
+        || (isActiveUser()
+          && get(/databases/$(database)/documents/employees/$(resource.data.employee_id)).data.email == request.auth.token.email);
+      allow create: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // صرف الرواتب (Salary Payments)
+    match /salary_payments/{paymentId} {
+      allow read: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // الزيارات الميدانية (Visits)
+    match /visits/{visitId} {
+      allow read: if canViewOperations() && belongsToCompany(resource.data);
+      allow create: if (canManageOperations() || (isActiveUser() && role() == 'sales_rep')) && willBelongToCompany();
+      allow update, delete: if (canManageOperations() || (isActiveUser() && role() == 'sales_rep')) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // سندات القبض الميدانية (Receipts)
+    match /receipts/{receiptId} {
+      allow read: if canViewOperations() && belongsToCompany(resource.data);
+      allow create: if (canViewOperations() || (isActiveUser() && role() == 'sales_rep')) && willBelongToCompany();
+      allow update: if (canViewOperations() || (isActiveUser() && role() == 'sales_rep')) && belongsToCompany(resource.data) && willBelongToCompany();
+      allow delete: if canManageOperations() && belongsToCompany(resource.data);
+    }
+
+    // المصروفات الميدانية (Field Expenses)
+    match /field_expenses/{expenseId} {
+      allow read: if canViewOperations() && belongsToCompany(resource.data);
+      allow create: if (canViewOperations() || (isActiveUser() && role() == 'sales_rep')) && willBelongToCompany();
+      allow update, delete: if canManageOperations() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // طلبات البضاعة للمندوب (Field Requests)
+    match /field_requests/{requestId} {
+      allow read: if canViewOperations() && belongsToCompany(resource.data);
+      allow create: if (canViewOperations() || (isActiveUser() && role() == 'sales_rep')) && willBelongToCompany();
+      allow update, delete: if canManageOperations() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // المطابقات اليومية (Daily Reconciliations)
+    match /daily_reconciliations/{reconciliationId} {
+      allow read: if canViewOperations() && belongsToCompany(resource.data);
+      allow create: if (canViewOperations() || (isActiveUser() && role() == 'sales_rep')) && willBelongToCompany();
+      allow update, delete: if canManageOperations() && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // مخزن السيارة (Van Inventory)
+    match /van_inventory/{inventoryId} {
+      allow read: if (canViewOperations() || (isActiveUser() && role() == 'sales_rep')) && belongsToCompany(resource.data);
+      allow create, update, delete: if (canManageOperations() || (isActiveUser() && role() == 'sales_rep')) && willBelongToCompany() && (resource == null || belongsToCompany(resource.data));
+    }
+
+    // تسويات المخزون (Inventory Adjustments)
+    match /inventory_adjustments/{adjustmentId} {
+      allow read: if signedIn() && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // حركات المخزون (Inventory Movements)
+    match /inventory_movements/{movementId} {
+      allow read: if signedIn() && belongsToCompany(resource.data);
+      allow create: if ((hasRole(['owner', 'admin', 'accountant']))
+        || (role() == 'sales_rep'
+          && request.resource.data.created_by == request.auth.uid
+          && request.resource.data.movement_type in ['sale', 'sales_return']))
+        && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // أوامر الإنتاج والتصنيع (Production Orders)
+    match /production_orders/{orderId} {
+      allow read: if signedIn() && belongsToCompany(resource.data);
+      allow create, update, delete: if hasRole(['owner', 'admin', 'accountant']) && willBelongToCompany() && (resource == null || belongsToCompany(resource.data));
+    }
+
+    // تقارير الأرباح (Profit Reports)
+    match /profit_reports/{reportId} {
+      allow read: if canViewFinancials() && belongsToCompany(resource.data);
+      allow create, update, delete: if canManageFinancials() && willBelongToCompany() && (resource == null || belongsToCompany(resource.data));
+    }
+
+    // المرتجعات (Returns)
+    match /returns/{returnId} {
+      allow read: if signedIn() && belongsToCompany(resource.data);
+      allow create: if hasRole(['owner', 'admin', 'accountant', 'sales_rep']) && willBelongToCompany();
+      allow update, delete: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+    }
+
+    // الديون والآجل (Debts)
+    match /debts/{debtId} {
+      allow read: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data);
+      allow create: if ((hasRole(['owner', 'admin', 'accountant']))
+        || (role() == 'sales_rep'
+          && request.resource.data.source_type == 'sale'
+          && request.resource.data.created_by == request.auth.uid))
+        && willBelongToCompany();
+      allow update: if hasRole(['owner', 'admin', 'accountant']) && belongsToCompany(resource.data) && willBelongToCompany();
+      allow delete: if hasRole(['owner', 'admin']) && belongsToCompany(resource.data);
+    }
+
+    // المهام الإدارية (CRM Tasks)
+    match /tasks/{taskId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // الإشعارات (Notifications)
+    match /notifications/{notificationId} {
+      allow read: if isSuperAdmin() || (belongsToCompany(resource.data) && (canManageUsers() || isNotificationRecipient(resource.data)));
+      allow create: if isActiveUser() && willBelongToCompany();
+      allow update: if (isSuperAdmin() || (belongsToCompany(resource.data) && willBelongToCompany() && canManageUsers()))
+        || (isNotificationRecipient(resource.data)
+          && belongsToCompany(resource.data)
+          && willBelongToCompany()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['is_read', 'read_at', 'updated_at']));
+      allow delete: if hasRole(['owner', 'admin']) && belongsToCompany(resource.data);
+    }
+
+    // الإعدادات العامة للشركة (Settings)
+    match /settings/{settingId} {
+      allow read: if isSuperAdmin() || (isActiveUser() && (settingId == 'settings_' + userCompany() || (resource != null && belongsToCompany(resource.data))));
+      allow write: if isSuperAdmin() || (hasRole(['owner', 'admin'])
+        && settingId == 'settings_' + userCompany()
+        && willBelongToCompany());
+    }
+
+    // ─── تذاكر الدعم الفني (Nexora ERP ⇄ لوحة إدارة المنصة crm-admin) ─────────
+    // فريق المنصة (platform_staff: platform_admin / billing_admin / support_agent) + super_admin يرى ويدير كل التذاكر.
+    // داخل الشركة: أدمن الشركة فقط (owner / admin / general_manager) يفتح ويتابع تذاكر شركته،
+    // ولا يرى الملاحظات الداخلية لفريق الدعم.
+    // platform_staff أولاً: قراءة آمنة بـ exists() — حساب فريق المنصة ليس له مستند في users
+    function isTicketStaff() {
+      return isActivePlatformStaff() || isSuperAdmin();
+    }
+
+    function inOwnCompany(companyId) {
+      return isActiveUser() && userCompany() != '' && companyId == userCompany()
+        && role() in ['owner', 'admin', 'general_manager'];
+    }
+
+    // نص الرسالة اختياري لو فيها مرفقات (حتى 5 مرفقات)
+    function validMessageContent(data) {
+      return data.body is string
+        && data.body.size() <= 5000
+        && (!('attachments' in data) || (data.attachments is list && data.attachments.size() <= 5))
+        && (data.body.size() > 0 || ('attachments' in data && data.attachments.size() > 0));
+    }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isTicketStaff() || inOwnCompany(resource.data.company_id);
+
+      allow create: if inOwnCompany(request.resource.data.company_id)
+        && request.resource.data.created_by.uid == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.assigned_to == null
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && request.resource.data.subject.size() <= 200;
+
+      // العميل: يحدّث حقول الرد/القراءة فقط، ويغلق أو يعيد فتح تذكرته — لا يغيّر الأولوية أو الإسناد أو الشركة
+      allow update: if isTicketStaff()
+        || (inOwnCompany(resource.data.company_id)
+          && request.resource.data.company_id == resource.data.company_id
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'updated_at', 'last_message_at', 'last_message_preview', 'last_message_by',
+            'unread_for_staff', 'unread_for_customer', 'message_count'
+          ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+            || request.resource.data.status in ['open', 'closed'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['last_message_by'])
+            || request.resource.data.last_message_by == 'customer'));
+
+      allow delete: if isPlatformAdmin() || isSuperAdmin();
+
+      match /messages/{messageId} {
+        function parentTicket() {
+          return get(/databases/$(database)/documents/support_tickets/$(ticketId)).data;
+        }
+
+        allow read: if isTicketStaff()
+          || (inOwnCompany(resource.data.company_id) && resource.data.internal == false);
+
+        allow create: if validMessageContent(request.resource.data)
+          && request.resource.data.company_id == parentTicket().company_id
+          && (
+            (isTicketStaff() && request.resource.data.author_side == 'staff')
+            || (inOwnCompany(parentTicket().company_id)
+              && request.resource.data.author_side == 'customer'
+              && request.resource.data.internal == false
+              && request.resource.data.author.uid == request.auth.uid
+              && parentTicket().status != 'closed')
+          );
+
+        // الرسائل غير قابلة للتعديل بعد الإرسال
+        allow update: if false;
+        allow delete: if isPlatformAdmin() || isSuperAdmin();
+      }
+    }
+
+    // افتراضي لمنع أي وصول غير مصرح
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

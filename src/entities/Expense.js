@@ -26,6 +26,10 @@ export default {
             type: "number",
             description: "Total amount spent in EGP"
         },
+        account_id: {
+            type: "string",
+            description: "The account or cashbox from which the expense was deducted"
+        },
         payment_method: {
             type: "string",
             enum: ["cash", "bank_transfer", "check", "credit_card", "instapay"],

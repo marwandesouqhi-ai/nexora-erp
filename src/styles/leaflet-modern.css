@@ -1,0 +1,361 @@
+/* ==========================================================================
+   Leaflet Modern CSS - Nexora ERP
+   Clean, modern CSS replacement for Leaflet to remove legacy browser warnings
+   ========================================================================== */
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane>svg,
+.leaflet-pane>canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.leaflet-container {
+    overflow: hidden;
+    position: relative;
+    outline-offset: 1px;
+    font-family: inherit;
+    touch-action: pan-x pan-y;
+}
+
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* Safari fix */
+.leaflet-safari .leaflet-tile {
+    image-rendering: -webkit-optimize-contrast;
+}
+
+.leaflet-safari .leaflet-tile-container {
+    width: 1600px;
+    height: 1600px;
+    transform-origin: 0 0;
+}
+
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+    display: block;
+}
+
+.leaflet-container .leaflet-overlay-pane svg {
+    max-width: none !important;
+    max-height: none !important;
+}
+
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container img.leaflet-image-layer,
+.leaflet-container .leaflet-tile {
+    max-width: none !important;
+    max-height: none !important;
+    width: auto;
+    padding: 0;
+}
+
+.leaflet-container.leaflet-touch-zoom {
+    touch-action: pan-x pan-y;
+}
+
+.leaflet-container.leaflet-touch-drag {
+    touch-action: pinch-zoom;
+}
+
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+    touch-action: none;
+}
+
+.leaflet-container a {
+    color: #4f46e5;
+}
+
+.leaflet-zoom-box {
+    border: 2px dotted #38f;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Tile styling */
+.leaflet-tile {
+    filter: inherit;
+    visibility: hidden;
+}
+
+.leaflet-tile-loaded {
+    visibility: inherit;
+}
+
+.leaflet-zoom-animated {
+    transform-origin: 0 0;
+}
+
+svg.leaflet-zoom-animated {
+    will-change: transform;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated {
+    transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
+
+.leaflet-zoom-anim .leaflet-tile,
+.leaflet-pan-anim .leaflet-tile {
+    transition: none;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-hide {
+    visibility: hidden;
+}
+
+/* Panes */
+.leaflet-pane {
+    z-index: 400;
+}
+
+.leaflet-tile-pane {
+    z-index: 200;
+}
+
+.leaflet-overlay-pane {
+    z-index: 400;
+}
+
+.leaflet-shadow-pane {
+    z-index: 500;
+}
+
+.leaflet-marker-pane {
+    z-index: 600;
+}
+
+.leaflet-tooltip-pane {
+    z-index: 650;
+}
+
+.leaflet-popup-pane {
+    z-index: 700;
+}
+
+.leaflet-map-pane canvas {
+    z-index: 100;
+}
+
+.leaflet-map-pane svg {
+    z-index: 200;
+}
+
+/* Controls */
+.leaflet-control {
+    position: relative;
+    z-index: 800;
+    pointer-events: visiblePainted;
+    pointer-events: auto;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+    position: absolute;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.leaflet-top {
+    top: 0;
+}
+
+.leaflet-right {
+    right: 0;
+}
+
+.leaflet-bottom {
+    bottom: 0;
+}
+
+.leaflet-left {
+    left: 0;
+}
+
+.leaflet-control {
+    float: left;
+    clear: both;
+    margin: 12px;
+}
+
+.leaflet-right .leaflet-control {
+    float: right;
+}
+
+.leaflet-top .leaflet-control {
+    margin-top: 12px;
+}
+
+.leaflet-bottom .leaflet-control {
+    margin-bottom: 12px;
+}
+
+/* Modern Zoom Control */
+.leaflet-bar {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    background-color: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.leaflet-bar a {
+    background-color: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    color: #1e293b;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background 0.15s ease;
+}
+
+.leaflet-bar a:hover {
+    background-color: #f8fafc;
+    color: #4f46e5;
+}
+
+.leaflet-bar a:last-child {
+    border-bottom: none;
+}
+
+/* Modern Popup */
+.leaflet-popup {
+    position: absolute;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.leaflet-popup-content-wrapper {
+    padding: 1px;
+    text-align: right;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e2e8f0;
+}
+
+.leaflet-popup-content {
+    margin: 12px 14px;
+    line-height: 1.5;
+    font-size: 13px;
+    direction: rtl;
+}
+
+.leaflet-popup-tip-container {
+    width: 40px;
+    height: 20px;
+    position: absolute;
+    left: 50%;
+    margin-left: -20px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.leaflet-popup-tip {
+    width: 14px;
+    height: 14px;
+    padding: 1px;
+    margin: -8px auto 0;
+    transform: rotate(45deg);
+    background: #ffffff;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.2);
+}
+
+.leaflet-popup-close-button {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    padding: 4px;
+    border: none;
+    text-align: center;
+    width: 20px;
+    height: 20px;
+    font: 16px/14px Tahoma, Verdana, sans-serif;
+    color: #94a3b8;
+    text-decoration: none;
+    font-weight: bold;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.leaflet-popup-close-button:hover {
+    color: #ef4444;
+}
+
+/* Attribution Control */
+.leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+    margin: 0;
+    padding: 2px 8px;
+    font-size: 10px;
+    color: #64748b;
+    border-top-left-radius: 6px;
+}
+
+/* Custom Numbered Marker Icon */
+.custom-route-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 12px;
+    border: 2px solid #ffffff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease;
+}
+
+.custom-route-marker:hover {
+    transform: scale(1.15);
+}
+
+.custom-route-marker.completed {
+    background: #10b981;
+    /* emerald */
+}
+
+.custom-route-marker.pending {
+    background: #6366f1;
+    /* indigo */
+}
+
+.custom-route-marker.rep {
+    background: #f59e0b;
+    /* amber */
+    animation: rep-pulse 2s infinite;
+}
+
+@keyframes rep-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+}

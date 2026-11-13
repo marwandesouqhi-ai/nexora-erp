@@ -1,30 +1,52 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getExpenses, updateExpense, deleteExpense, recordExpense } from '@/firebase/collections/expenses';
+import { getAccounts } from '@/firebase/collections/accounts';
+import { getFieldExpenses } from '@/firebase/collections/field_expenses';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Wallet, Receipt, Loader2, Calendar, Trash2, Pencil } from 'lucide-react';
+import { Plus, Wallet, Loader2, Trash2, Pencil, Building2, Truck, Receipt } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
+import { useRole } from '@/lib/RoleContext';
+import FieldExpensesManager from '@/components/expenses/FieldExpensesManager';
 
+import { PageHero } from '@/components/page';
 export default function Expenses() {
+    const { can } = useRole();
     const { toast } = useToast();
     const qc = useQueryClient();
+    const [activeTab, setActiveTab] = useState('field'); // 'field' | 'general'
     const [amount, setAmount] = useState('');
     const [category, setCategory] = useState('general');
     const [note, setNote] = useState('');
+    const [accountId, setAccountId] = useState('');
     const [editId, setEditId] = useState(null);
     const [deleteId, setDeleteId] = useState(null);
 
-    // 1. جلب المصروفات
+    // 1. جلب المصروفات العامة
     const { data: expenses = [], isLoading } = useQuery({
         queryKey: ['expenses'],
         queryFn: getExpenses
     });
+
+    const { data: accounts = [] } = useQuery({
+        queryKey: ['expense-accounts'],
+        queryFn: getAccounts
+    });
+
+    // 2. فحص عدد مصروفات المناديب المعلقة لإظهار الشارة
+    const { data: fieldExpenses = [] } = useQuery({
+        queryKey: ['field-expenses-badge'],
+        queryFn: getFieldExpenses,
+    });
+
+    const pendingFieldCount = fieldExpenses.filter((e) => e.status === 'pending' || !e.status).length;
 
     // 2. إضافة/تحديث مصروف
     const saveMutation = useMutation({
@@ -41,6 +63,7 @@ export default function Expenses() {
             toast({ title: editId ? "تم تحديث المصروف بنجاح" : "تم تسجيل المصروف بنجاح" });
             setAmount('');
             setNote('');
+            setAccountId('');
             setEditId(null);
         }
     });
@@ -62,15 +85,17 @@ export default function Expenses() {
             amount: Number(amount),
             category,
             description: note,
-            userId: 'current_user' // TODO: get from auth
+            userId: 'current_user',
+            account_id: accountId || ''
         };
         saveMutation.mutate(expenseData);
     };
 
     const openEdit = (expense) => {
         setAmount(expense.amount.toString());
-        setCategory(expense.category);
+        setCategory(expense.category || expense.expense_type || 'general');
         setNote(expense.description || '');
+        setAccountId(expense.account_id || '');
         setEditId(expense.id);
     };
 
@@ -78,21 +103,66 @@ export default function Expenses() {
         setAmount('');
         setCategory('general');
         setNote('');
+        setAccountId('');
         setEditId(null);
     };
 
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
-    return (
-        <div className="p-6 space-y-6 bg-slate-50 min-h-screen" dir="rtl">
-            <header>
-                <h1 className="text-2xl font-black text-slate-800">إدارة المصروفات</h1>
-                <p className="text-slate-500">سجل كل قرش بيطلع من المحل عشان حساباتك تظبط</p>
-            </header>
+    if (!can('can_view_financials')) {
+        return <div className="p-8 text-center text-muted-foreground">غير مسموح لك بالوصول إلى المصروفات.</div>;
+    }
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    return (
+        <div className="space-y-6 pb-8" dir="rtl">
+            {/* Header & Tabs */}
+            <PageHero
+                className="mb-0"
+                icon={Receipt}
+                tone="orange"
+                title="إدارة وتدقيق المصروفات"
+                subtitle="تدقيق واعتماد مصروفات وسلف المناديب الميدانية وإدارة المصروفات التشغيلية للمنشأة."
+                actions={
+                    <div className="flex items-center gap-1 rounded-full border border-border bg-card-muted p-1">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={activeTab === 'field' ? 'default' : 'ghost'}
+                            onClick={() => setActiveTab('field')}
+                            className="h-8 gap-2 rounded-full text-xs font-bold"
+                        >
+                            <Truck className="h-4 w-4" />
+                            مصروفات وسلف المناديب
+                            {pendingFieldCount > 0 && (
+                                <Badge className="border-0 bg-warning px-1.5 py-0 text-[10px] text-white">
+                                    {pendingFieldCount} معلق
+                                </Badge>
+                            )}
+                        </Button>
+
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={activeTab === 'general' ? 'default' : 'ghost'}
+                            onClick={() => setActiveTab('general')}
+                            className="h-8 gap-2 rounded-full text-xs font-bold"
+                        >
+                            <Building2 className="h-4 w-4" />
+                            المصروفات العامة المركزية
+                        </Button>
+                    </div>
+                }
+            />
+
+            {/* Tab 1: Field Expenses Manager */}
+            {activeTab === 'field' && <FieldExpensesManager />}
+
+            {/* Tab 2: General Expenses Management */}
+            {activeTab === 'general' && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* فورم الإضافة */}
-                <Card className="border-none shadow-sm rounded-3xl bg-white h-fit">
+                <Card className="h-fit rounded-2xl border border-border bg-card shadow-card">
                     <CardHeader>
                         <CardTitle className="text-lg font-black flex items-center gap-2">
                             <Plus className="text-indigo-600" /> إضافة مصروف
@@ -101,7 +171,7 @@ export default function Expenses() {
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">المبلغ</label>
+                                <label className="text-xs font-bold text-muted-foreground mb-1 block">المبلغ</label>
                                 <Input
                                     type="number"
                                     placeholder="0.00"
@@ -111,7 +181,7 @@ export default function Expenses() {
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">التصنيف</label>
+                                <label className="text-xs font-bold text-muted-foreground mb-1 block">التصنيف</label>
                                 <Select value={category} onValueChange={setCategory}>
                                     <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -124,7 +194,18 @@ export default function Expenses() {
                                 </Select>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">ملاحظة</label>
+                                <label className="text-xs font-bold text-muted-foreground mb-1 block">الحساب/الخزينة</label>
+                                <Select value={accountId} onValueChange={setAccountId}>
+                                    <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="اختر حساباً" /></SelectTrigger>
+                                    <SelectContent>
+                                        {accounts.map((account) => (
+                                            <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-muted-foreground mb-1 block">ملاحظة</label>
                                 <Input
                                     placeholder="مثلاً: فاتورة كهرباء شهر 5"
                                     value={note}
@@ -133,13 +214,15 @@ export default function Expenses() {
                                 />
                             </div>
                             <div className="flex gap-2">
-                                <Button
-                                    type="submit"
-                                    className="flex-1 h-12 rounded-xl bg-indigo-600 font-bold"
-                                    disabled={saveMutation.isPending}
-                                >
-                                    {saveMutation.isPending ? <Loader2 className="animate-spin" /> : (editId ? "تحديث" : "حفظ المصروف")}
-                                </Button>
+                                {can('can_manage_accounts') && (
+                                    <Button
+                                        type="submit"
+                                        className="flex-1 h-12 rounded-xl bg-indigo-600 font-bold"
+                                        disabled={saveMutation.isPending}
+                                    >
+                                        {saveMutation.isPending ? <Loader2 className="animate-spin" /> : (editId ? "تحديث" : "حفظ المصروف")}
+                                    </Button>
+                                )}
                                 {editId && (
                                     <Button
                                         type="button"
@@ -167,9 +250,9 @@ export default function Expenses() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-none shadow-sm rounded-3xl bg-white overflow-hidden">
+                    <Card className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
                         <Table>
-                            <TableHeader className="bg-slate-50">
+                            <TableHeader className="bg-card-muted">
                                 <TableRow>
                                     <TableHead className="text-right">التاريخ</TableHead>
                                     <TableHead className="text-right">التصنيف</TableHead>
@@ -183,34 +266,28 @@ export default function Expenses() {
                                     <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
                                 ) : expenses.map(exp => (
                                     <TableRow key={exp.id}>
-                                        <TableCell className="text-slate-500 text-xs">
+                                        <TableCell className="text-muted-foreground text-xs">
                                             {exp.created_at ? format(exp.created_at.toDate(), 'yyyy-MM-dd') : '...'}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="px-2 py-1 bg-slate-100 rounded-md text-xs font-bold text-slate-600">
+                                            <span className="px-2 py-1 bg-card-muted rounded-md text-xs font-bold text-secondary-text">
                                                 {exp.category}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="font-medium">{exp.note}</TableCell>
+                                        <TableCell className="font-medium">{exp.description || exp.note || ''}</TableCell>
                                         <TableCell className="text-left font-black text-red-500">{exp.amount} ج.م</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => openEdit(exp)}
-                                                    className="text-blue-600 hover:text-blue-700"
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setDeleteId(exp.id)}
-                                                    className="text-red-600 hover:text-red-700"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
+                                                {can('can_manage_accounts') && (
+                                                    <>
+                                                        <Button variant="ghost" size="sm" onClick={() => openEdit(exp)} className="text-blue-600 hover:text-blue-700">
+                                                            <Pencil className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="sm" onClick={() => setDeleteId(exp.id)} className="text-red-600 hover:text-red-700">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -219,7 +296,9 @@ export default function Expenses() {
                         </Table>
                     </Card>
                 </div>
+                </div>
             </div>
+            )}
 
             {/* حوار تأكيد الحذف */}
             <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

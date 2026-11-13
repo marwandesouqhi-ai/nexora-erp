@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // استيراد الدوال من ملف كوليكشن الموردين الخاص بنا
 import { addNewSupplier, getSuppliers, updateSupplier, deleteSupplierDoc } from '@/firebase/collections/suppliers';
@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Search, Trash2, Pencil, Truck, Wallet } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Wallet, Truck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import ExportMenu from '@/components/shared/ExportMenu';
 
+import { PageHero, StatCard, EmptyState } from '@/components/page';
 // إضافة current_balance للفورم الافتراضي
 const emptyForm = { name: '', company: '', phone: '', whatsapp: '', email: '', address: '', notes: '', current_balance: 0 };
 
@@ -75,30 +76,23 @@ export default function Suppliers() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-2xl font-black">الموردون</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">{suppliers.length} مورد مسجل</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <ExportMenu data={exportData} filename="suppliers" title="قائمة الموردين" disabled={!filtered.length} />
-                    {can('can_edit_suppliers') && <Button onClick={openNew} className="gap-2"><Plus className="w-4 h-4" /> مورد جديد</Button>}
-                </div>
-            </div>
+            <PageHero
+                className="mb-0"
+                icon={Truck}
+                tone="cyan"
+                title="الموردون"
+                subtitle={`${suppliers.length} مورد مسجل`}
+                actions={
+                    <>
+                        <ExportMenu data={exportData} filename="suppliers" title="قائمة الموردين" disabled={!filtered.length} />
+                        {can('can_edit_suppliers') && <Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> مورد جديد</Button>}
+                    </>
+                }
+            />
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="erp-card p-4 border border-border bg-card/50">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Wallet className="w-5 h-5" /></div>
-                        <div>
-                            <p className="text-xs text-muted-foreground font-bold">إجمالي مديونية الموردين</p>
-                            <p className="text-xl font-black text-amber-500">
-                                {suppliers.reduce((s, c) => s + (Number(c.current_balance) || 0), 0).toLocaleString('ar')} ج.م
-                            </p>
-                        </div>
-                    </div>
-                </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <StatCard title="إجمالي مديونية الموردين" value={`${suppliers.reduce((s, c) => s + (Number(c.current_balance) || 0), 0).toLocaleString('en-US')} ج.م`} valueClassName="text-warning" caption={`${suppliers.length} مورد مسجل`} icon={Wallet} tone="amber" />
             </div>
 
             {/* Search */}
@@ -121,7 +115,7 @@ export default function Suppliers() {
                     </thead>
                     <tbody>
                         {isLoading ? <tr><td colSpan={5} className="py-10 text-center">جاري جلب البيانات من Nexora Cloud...</td></tr>
-                            : filtered.length === 0 ? <tr><td colSpan={5} className="py-10 text-center">لا يوجد موردون مسجلون</td></tr>
+                            : filtered.length === 0 ? <tr><td colSpan={5}><EmptyState text="لا يوجد موردون مسجلون" /></td></tr>
                                 : filtered.map(s => (
                                     <tr key={s.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                                         <td className="px-5 py-3">
