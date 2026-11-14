@@ -43,6 +43,7 @@ import CompanySettings from '@/pages/CompanySettings';
 import InvoiceTemplate from '@/pages/InvoiceTemplate';
 import Support from '@/pages/Support';
 import AcceptInvitation from '@/pages/AcceptInvitation';
+import SetPassword from '@/pages/SetPassword';
 import PageNotFound from '@/lib/PageNotFound';
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
               {/* صفحة تسجيل الدخول العامة */}
               <Route path="/login" element={<Login />} />
               <Route path="/accept-invitation" element={<AcceptInvitation />} />
+              <Route path="/set-password" element={<SetPassword />} />
 
 
 
