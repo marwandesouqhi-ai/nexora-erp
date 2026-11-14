@@ -1,0 +1,26 @@
+{
+  "name": "Nexora CRM Admin",
+  "id": "/",
+  "scope": "/",
+  "lang": "ar",
+  "dir": "rtl",
+  "description": "إدارة الشركات والاشتراكات ودعم المنصة",
+  "short_name": "CRM Admin",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0B0F19",
+  "background_color": "#0B0F19",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

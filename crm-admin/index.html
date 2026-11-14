@@ -2,14 +2,47 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B0F19" />
+    <meta name="application-name" content="Nexora CRM Admin" />
+    <meta name="apple-mobile-web-app-title" content="CRM Admin" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Nexora CRM — إدارة الشركات والاشتراكات ودعم المنصة." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ar_EG" />
+    <meta property="og:site_name" content="Nexora CRM Admin" />
+    <meta property="og:title" content="Nexora CRM Admin" />
+    <meta property="og:description" content="إدارة الشركات والاشتراكات ودعم المنصة." />
+    <meta property="og:image" content="https://crm-admin-eight-flax.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Nexora CRM — Admin Control Center" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nexora CRM Admin" />
+    <meta name="twitter:image" content="https://crm-admin-eight-flax.vercel.app/og-image.png" />
+    <script>
+      (() => {
+        let dark = true;
+        try {
+          const saved = localStorage.getItem('nexora_crm_theme');
+          if (saved === 'light' || saved === 'dark') dark = saved === 'dark';
+        } catch { /* Use the default theme if browser storage is unavailable. */ }
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0B0F19' : '#f3f6fb');
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <title>Nexora ERP - لوحة التحكم</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Nexora CRM Admin — لوحة إدارة المنصة</title>
   </head>
-  <body>
+  <body style="font-family: 'Cairo', sans-serif;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
