@@ -1,6 +1,6 @@
 import * as React from "react"
 import { db } from "@/api/firebase"
-import { doc, updateDoc } from "firebase/firestore"
+import { doc, updateDoc } from '@/data/firestoreCompat'
 import { useAuth } from "@/lib/AuthContext"
 
 const MOBILE_BREAKPOINT = 768

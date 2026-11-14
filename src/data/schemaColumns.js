@@ -34,6 +34,7 @@ settings(id:uuid,company_id:uuid,legacy_firebase_id:text,settings_key:text,busin
 suppliers(id:uuid,company_id:uuid,legacy_firebase_id:text,name:text,company:text,phone:text,whatsapp:text,email:text,address:text,category:text,balance:numeric,is_active:boolean,notes:text,metadata:jsonb,created_by_user:uuid,legacy_firebase_uid:text,created_at:tstz,updated_at:tstz,current_balance:numeric,total_purchases_value:numeric)
 van_inventory(id:uuid,company_id:uuid,legacy_firebase_id:text,van_id:text,rep_id:text,rep_name:text,items:jsonb,last_audit_date:tstz,notes:text,metadata:jsonb,created_by:uuid,legacy_firebase_uid:text,created_at:tstz,updated_at:tstz)
 profiles(id:uuid,company_id:uuid,name:text,email:text,phone:text,avatar_url:text,role:erp_role,permission_overrides:jsonb,status:text,is_active:boolean,created_at:tstz,updated_at:tstz)
+companies(id:uuid,company_number:bigint,company_code:text,name:text,email:text,phone:text,address:text,status:text,suspended_reason:text,subscription:jsonb,metadata:jsonb,created_at:tstz,updated_at:tstz,legacy_source_id:text,owner_uid:uuid,enabled_modules:ARRAY)
 visits(id:uuid,company_id:uuid,legacy_firebase_id:text,employee_id:text,employee_name:text,customer_id:text,customer_name:text,customer_address:text,visit_date:date,latitude:numeric,longitude:numeric,start_time:tstz,end_time:tstz,notes:text,status:text,metadata:jsonb,created_by:uuid,legacy_firebase_uid:text,created_at:tstz,updated_at:tstz)
 `;
 

@@ -11,7 +11,7 @@ import {
     limit,
     getDocs,
     Timestamp,
-} from 'firebase/firestore';
+} from '@/data/firestoreCompat';
 import { createTenantQuery } from '@/lib/tenantFirestore';
 
 // ====================================================

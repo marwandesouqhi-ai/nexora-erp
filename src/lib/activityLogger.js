@@ -1,6 +1,6 @@
 // src/lib/activityLogger.js
 import { db } from '../api/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from '@/data/firestoreCompat';
 import { withTenant } from './tenantFirestore';
 
 let cachedIp = '';

@@ -8,7 +8,7 @@ import {
     updateDoc,
     limit,
     writeBatch
-} from 'firebase/firestore';
+} from '@/data/firestoreCompat';
 import { sendStockAlert } from '@/services/whatsappService';
 import { useToast } from '@/components/ui/use-toast';
 import { createTenantQuery } from '@/lib/tenantFirestore';
