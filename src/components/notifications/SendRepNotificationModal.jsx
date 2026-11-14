@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Send, Bell, User, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { Send, User, Sparkles, Loader2 } from 'lucide-react';
 import { sendRepNotification } from '@/firebase/collections/notifications';
 import { useToast } from '@/components/ui/use-toast';
 

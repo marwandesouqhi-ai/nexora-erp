@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEmployees } from '@/firebase/collections/employees';
 import {
@@ -10,35 +10,13 @@ import {
     getAttendanceRecords
 } from '@/firebase/collections/attendance';
 import { useRole } from '@/lib/RoleContext';
-import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import {
-    Fingerprint,
-    LogIn,
-    LogOut,
-    MapPin,
-    Calendar,
-    Users,
-    Clock,
-    AlertCircle,
-    CheckCircle2,
-    CalendarDays,
-    Radio,
-    Award,
-    Plus,
-    Trash2,
-    RotateCw,
-    Search,
-    Compass,
-    ExternalLink,
-    Edit3,
-    ShieldCheck
-} from 'lucide-react';
+import { Fingerprint, LogIn, LogOut, MapPin, Calendar, Users, Clock, AlertCircle, CheckCircle2, CalendarDays, Radio, Award, Trash2, Search, ExternalLink, Edit3, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import ExportMenu from '@/components/shared/ExportMenu';
 import AttendanceLocationModal from '@/components/attendance/AttendanceLocationModal';
@@ -82,7 +60,6 @@ const calculateDuration = (checkInVal, checkOutVal) => {
 
 export default function Attendance() {
     const { can } = useRole();
-    const { user } = useAuth();
     const { toast } = useToast();
     const qc = useQueryClient();
 

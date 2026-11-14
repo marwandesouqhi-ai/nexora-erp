@@ -1,21 +1,8 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import '@/styles/leaflet-modern.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-    Navigation,
-    Route,
-    Clock,
-    MapPin,
-    Compass,
-    CheckCircle2,
-    Users,
-    Layers,
-    Maximize2
-} from 'lucide-react';
+import { Navigation, Route, Clock, CheckCircle2 } from 'lucide-react';
 
 /**
  * حساب المسافة بالكيلومتر بين نقطتين جغرافيتين باستخدام خوارزمية Haversine
@@ -88,7 +75,6 @@ function solveNearestNeighborRoute(stops, startPoint = null) {
 export default function RouteOptimizerMap({
     customers = [],
     visits = [],
-    selectedRep = null,
     repLocation = null,
     className = ""
 }) {
@@ -97,7 +83,6 @@ export default function RouteOptimizerMap({
     const markersLayerRef = useRef(null);
     const routeLayerRef = useRef(null);
 
-    const [viewMode, setViewMode] = useState('optimized'); // 'optimized' | 'actual' | 'both'
 
     // فلترة نقاط العملاء أو الزيارات الصالحة جغرافياً
     const validStops = useMemo(() => {

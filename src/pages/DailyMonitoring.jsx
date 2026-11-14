@@ -82,7 +82,6 @@ export default function DailyMonitoring() {
     const hasDataError = employeesError || visitsError || receiptsError;
 
     const todaySales = useMemo(() => sales.filter((s) => { const d = toDate(s.created_date || s.created_at); return d && isSameDay(d, new Date()); }), [sales]);
-    const todayPurchases = useMemo(() => purchases.filter((p) => { const d = toDate(p.created_at || p.purchase_date); return d && isSameDay(d, new Date()); }), [purchases]);
     const todayExpenses = useMemo(() => expenses.filter((e) => { const d = toDate(e.expense_date); return d && isSameDay(d, new Date()); }), [expenses]);
     const todayVisits = useMemo(() => visits.filter((v) => {
         const d = toDate(v.date || v.created_at || v.checkInTime);
@@ -94,7 +93,6 @@ export default function DailyMonitoring() {
     }), [receipts]);
 
     const totalSalesToday = todaySales.reduce((sum, s) => sum + Number(s.total || s.total_amount || 0), 0);
-    const totalPurchasesToday = todayPurchases.reduce((sum, p) => sum + Number(p.total || p.total_amount || 0), 0);
     const totalExpensesToday = todayExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
     const totalCollectedToday = todayReceipts.reduce((sum, r) => sum + Number(r.amount || 0), 0);
     const activeEmployees = employees.filter((e) => e.status !== 'terminated').length;

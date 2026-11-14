@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { useRole } from '@/lib/RoleContext';
 import { useToast } from '@/components/ui/use-toast';
 import {
     subscribeDailyReconciliations,
@@ -14,22 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-    CheckSquare,
-    Printer,
-    Search,
-    AlertTriangle,
-    CheckCircle2,
-    Calendar,
-    UserCheck,
-    Banknote,
-    MessageCircle,
-    FileSpreadsheet,
-    Loader2,
-    Truck,
-    Clock,
-    PlusCircle
-} from 'lucide-react';
+import { CheckSquare, Printer, Search, AlertTriangle, CheckCircle2, Calendar, Banknote, MessageCircle, FileSpreadsheet, Loader2, Truck } from 'lucide-react';
 import { getWaUrl } from '@/utils/whatsapp';
 import { exportToCsv } from '@/utils/exportToCsv';
 import ReconciliationPrintModal from '@/components/reconciliations/ReconciliationPrintModal';
@@ -37,7 +21,6 @@ import ReconciliationPrintModal from '@/components/reconciliations/Reconciliatio
 import { PageHero, StatCard, EmptyState } from '@/components/page';
 export default function DailyReconciliations() {
     const { user } = useAuth();
-    const { can } = useRole();
     const { toast } = useToast();
 
     const [records, setRecords] = useState([]);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAccounts } from '@/firebase/collections/accounts';
 import {
@@ -7,12 +7,10 @@ import {
     rejectFieldExpense,
     CATEGORY_LABELS
 } from '@/firebase/collections/field_expenses';
-import { useRole } from '@/lib/RoleContext';
 import { useAuth } from '@/lib/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -23,25 +21,7 @@ import {
     DialogDescription,
     DialogFooter
 } from '@/components/ui/dialog';
-import {
-    Fuel,
-    Receipt,
-    Wrench,
-    Coffee,
-    CreditCard,
-    CheckCircle2,
-    XCircle,
-    Clock,
-    Eye,
-    ExternalLink,
-    Search,
-    ShieldCheck,
-    AlertCircle,
-    Loader2,
-    Wallet,
-    Calendar,
-    User
-} from 'lucide-react';
+import { Fuel, Receipt, Wrench, Coffee, CreditCard, CheckCircle2, XCircle, Clock, Eye, ExternalLink, Search, ShieldCheck, Loader2, Wallet, User } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 import { EmptyState } from '@/components/page';
@@ -54,7 +34,6 @@ const CATEGORY_ICONS = {
 };
 
 export default function FieldExpensesManager() {
-    const { can } = useRole();
     const { user } = useAuth();
     const { toast } = useToast();
 

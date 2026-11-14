@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -10,9 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Clock, AlertCircle, Edit3, ShieldCheck, UserCheck, Loader2 } from 'lucide-react';
-import { updateAttendanceRecord, approveAttendanceRecord } from '@/firebase/collections/attendance';
+import { Clock, Edit3, ShieldCheck, Loader2 } from 'lucide-react';
+import { updateAttendanceRecord } from '@/firebase/collections/attendance';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function AttendanceEditModal({ record, open, onClose, onUpdated }) {

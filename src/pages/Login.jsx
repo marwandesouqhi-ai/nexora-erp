@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, firebaseConfigValid, functions } from '@/api/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { firebaseConfigValid } from '@/api/firebase';
+import { supabaseConfigValid } from '@/api/supabase';
+import { isSupabaseBackend } from '@/api/backend';
+import { signInWithPassword, recordAuthenticationEvent, AUTH_ERRORS } from '@/lib/authService';
 import { useAuth } from '@/lib/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { getClientDevice, getClientIp } from '@/lib/clientIp';
@@ -30,13 +31,13 @@ export default function Login() {
         setError('');
         setSubmitting(true);
         try {
-            if (!firebaseConfigValid) {
-                setError('إعدادات Firebase غير مكتملة. تأكد من ضبط متغيرات البيئة VITE_FIREBASE_ في .env');
+            if (isSupabaseBackend ? !supabaseConfigValid : !firebaseConfigValid) {
+                setError('إعدادات الاتصال بالخادم غير مكتملة. تأكد من ضبط متغيرات البيئة في .env');
                 return;
             }
 
-            const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-            await httpsCallable(functions, 'recordAuthenticationEvent')({ action: 'login' });
+            const credential = await signInWithPassword(email.trim(), password);
+            await recordAuthenticationEvent('login');
             await logActivity({
                 user: credential.user,
                 action: 'login',
@@ -48,20 +49,18 @@ export default function Login() {
             navigate(location.state?.from?.pathname || '/', { replace: true });
         } catch (err) {
             console.error('خطأ تسجيل الدخول:', err);
-            switch (err?.code) {
-                case 'auth/invalid-credential':
-                case 'auth/wrong-password':
-                case 'auth/user-not-found':
+            switch (err?.authCode) {
+                case AUTH_ERRORS.INVALID_CREDENTIALS:
                     setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
                     break;
-                case 'auth/invalid-email':
+                case AUTH_ERRORS.INVALID_EMAIL:
                     setError('صيغة البريد الإلكتروني غير صحيحة.');
                     break;
-                case 'auth/too-many-requests':
+                case AUTH_ERRORS.TOO_MANY_REQUESTS:
                     setError('محاولات كتيرة جدًا، حاول تاني بعد شوية.');
                     break;
                 default:
-                    setError('حصل خطأ أثناء تسجيل الدخول، تحقق من إعدادات Firebase ومفتاح الـ API.');
+                    setError('حصل خطأ أثناء تسجيل الدخول، تحقق من إعدادات الاتصال ومفتاح الـ API.');
             }
         } finally {
             setSubmitting(false);

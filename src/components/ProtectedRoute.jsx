@@ -1,6 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/api/firebase';
+import { signOutUser } from '@/lib/authService';
 import { useAuth } from '@/lib/AuthContext';
 import { useTenant } from '@/lib/TenantContext';
 import { Loader2 } from 'lucide-react';
@@ -35,7 +34,7 @@ export default function ProtectedRoute({ children }) {
     // suspends its Firestore profile. The Cloud Function also disables the Auth
     // account; this guards the UI during token/session propagation.
     if (user.status === 'suspended' || user.status === 'inactive' || user.is_active === false) {
-        void signOut(auth);
+        void signOutUser();
         return <Navigate to="/login" replace state={{ accountDisabled: true }} />;
     }
 

@@ -18,7 +18,7 @@ const getClientIp = async () => {
         const data = await response.json();
         cachedIp = data.ip;
         return cachedIp;
-    } catch (error) {
+    } catch {
         return 'غير معروف';
     }
 };

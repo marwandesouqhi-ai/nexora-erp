@@ -1,21 +1,8 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import {
-    Store,
-    Camera,
-    TrendingUp,
-    AlertCircle,
-    Eye,
-    Tag,
-    Layers,
-    CheckCircle2,
-    Clock,
-    DollarSign,
-    Sparkles
-} from 'lucide-react';
+import { Store, Camera, Eye, Tag } from 'lucide-react';
 
 const STOCK_STATUS_LABELS = {
     available: 'متوفر بكثرة 🟢',

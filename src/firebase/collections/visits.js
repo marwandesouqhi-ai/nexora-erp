@@ -1,12 +1,4 @@
-import { db } from "../firebaseConfig";
-import {
-    collection,
-    query,
-    where,
-    orderBy,
-    getDocs,
-    onSnapshot
-} from "firebase/firestore";
+import { onSnapshot } from "firebase/firestore";
 import { fetchTenantDocs, createTenantQuery } from "@/lib/tenantFirestore";
 
 const VISITS_COLLECTION = "visits";

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAccounts } from '@/firebase/collections/accounts';
 import {
@@ -22,20 +22,7 @@ import {
     DialogDescription,
     DialogFooter
 } from '@/components/ui/dialog';
-import {
-    Banknote,
-    Wallet,
-    CheckCircle2,
-    Clock,
-    Search,
-    User,
-    ArrowDownLeft,
-    ShieldCheck,
-    CreditCard,
-    Building2,
-    Loader2,
-    ExternalLink
-} from 'lucide-react';
+import { Banknote, Wallet, CheckCircle2, Clock, Search, User, ArrowDownLeft, ShieldCheck, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 import { EmptyState } from '@/components/page';

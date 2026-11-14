@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Printer, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Printer, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getDifferenceStatus } from '@/firebase/collections/daily_reconciliations';
 
 export const ReconciliationPrintSheet = forwardRef(({ record }, ref) => {

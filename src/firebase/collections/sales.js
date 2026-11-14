@@ -1,16 +1,4 @@
-import {
-    collection,
-    getDocs,
-    getDoc,
-    doc,
-    query,
-    orderBy,
-    where,
-    increment,
-    runTransaction,
-    serverTimestamp,
-    updateDoc,
-} from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, where, increment, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { db } from '../firebaseConfig';
 import { deductFromVanInventory } from './van_inventory';

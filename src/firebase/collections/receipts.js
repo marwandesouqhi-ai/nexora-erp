@@ -1,17 +1,5 @@
 import { db } from "../firebaseConfig";
-import {
-    collection,
-    doc,
-    getDocs,
-    updateDoc,
-    query,
-    where,
-    orderBy,
-    onSnapshot,
-    serverTimestamp,
-    increment,
-    runTransaction
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, serverTimestamp, increment, runTransaction } from "firebase/firestore";
 import { sendRepNotification } from "./notifications";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
 

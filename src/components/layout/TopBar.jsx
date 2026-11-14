@@ -6,9 +6,7 @@ import {
 import { useAuth } from '@/lib/AuthContext';
 import { useRole } from '@/lib/RoleContext';
 import { useTheme } from '@/lib/ThemeContext';
-import { auth, functions } from '@/api/firebase';
-import { signOut } from 'firebase/auth';
-import { httpsCallable } from 'firebase/functions';
+import { recordAuthenticationEvent, signOutUser } from '@/lib/authService';
 import { useToast } from '@/components/ui/use-toast';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -52,7 +50,7 @@ function TopBar({ onPortalToggle }) {
         if (loggingOut) return;
         setLoggingOut(true);
         try {
-            await httpsCallable(functions, 'recordAuthenticationEvent')({ action: 'logout' });
+            await recordAuthenticationEvent('logout');
             await logActivity({
                 user,
                 action: 'logout',
@@ -61,7 +59,7 @@ function TopBar({ onPortalToggle }) {
                 ip_address: await getClientIp(),
                 device: getClientDevice(),
             });
-            await signOut(auth);
+            await signOutUser();
         } catch (err) {
             console.error('Logout failed:', err);
             toast({

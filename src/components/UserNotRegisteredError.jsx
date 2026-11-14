@@ -1,7 +1,6 @@
 import { ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/api/firebase';
+import { getCurrentAuthUser, signOutUser } from '@/lib/authService';
 import { logActivity } from '@/lib/activityLogger';
 import { getClientDevice, getClientIp } from '@/lib/clientIp';
 
@@ -13,14 +12,14 @@ export default function UserNotRegisteredError({ email }) {
     const handleLogout = async () => {
         try {
             await logActivity({
-                user: auth.currentUser,
+                user: await getCurrentAuthUser(),
                 action: 'logout',
                 entity_type: 'authentication',
                 details: 'تسجيل خروج من شاشة الحساب غير المفعّل',
                 ip_address: await getClientIp(),
                 device: getClientDevice(),
             });
-            await signOut(auth);
+            await signOutUser();
         } catch (err) {
             console.error('فشل تسجيل الخروج:', err);
         }

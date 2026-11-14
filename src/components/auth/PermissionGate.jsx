@@ -14,24 +14,14 @@ export default function PermissionGate({ permission, children }) {
     const { toast } = useToast();
     const location = useLocation();
 
-    // السوبر أدمن لديه وصول كامل دائماً
-    if (isSuperAdmin) {
-        return children;
+    // السوبر أدمن لديه وصول كامل، وعدم وجود صلاحية مطلوبة = وصول مسموح
+    let hasAccess = true;
+    if (!isSuperAdmin && permission) {
+        hasAccess = Array.isArray(permission)
+            ? permission.some((p) => can(p))
+            : can(permission);
     }
 
-    if (!permission) {
-        return children;
-    }
-
-    // التحقق مما إذا كان المستخدم يملك الصلاحية (سواء كانت سلسلة أو مصفوفة)
-    let hasAccess = false;
-    if (Array.isArray(permission)) {
-        hasAccess = permission.some((p) => can(p));
-    } else {
-        hasAccess = can(permission);
-    }
-
-    // eslint-react-hooks/exhaustive-deps
     useEffect(() => {
         if (!hasAccess) {
             toast({
