@@ -446,7 +446,7 @@ async function verify(companyIds) {
   // Money checks per company: sales total, products stock, customer balances
   for (const [oldId, uuid] of companyIds) {
     const sums = async (collection, field) => (await fdb.collection(collection).where('company_id', '==', oldId).get())
-      .docs.reduce((acc, d) => acc + num(d.data()[field] ?? (field === 'total_amount' ? d.data().total : 0)), 0);
+      .docs.reduce((acc, d) => acc + num(d.data()[field] ?? (field === 'total_amount' ? d.data().total : field === 'current_stock' ? d.data().stock : field === 'balance' ? d.data().current_balance : 0)), 0);
     const sbSum = async (table, field) => {
       const { data } = await sb.from(table).select(field).eq('company_id', uuid);
       return (data || []).reduce((acc, r) => acc + num(r[field]), 0);
