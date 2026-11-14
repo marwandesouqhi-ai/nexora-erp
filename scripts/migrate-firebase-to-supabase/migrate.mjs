@@ -6,6 +6,8 @@
  *   node migrate.mjs --verify        compares row counts and money totals Firebase <-> Supabase
  *
  * Options:  --collections=sales,products   only these tenant collections
+ *           --update-existing              overwrite rows that already exist in Supabase
+ *           --allow-unmatched              skip the duplicate guard
  *           --skip-auth                    do not create Supabase Auth users
  *           --send-reset                   e-mail a password-reset link to every migrated user
  *
@@ -19,6 +21,11 @@
  *    documents (customer_id, items[].product_id, party_id...) are therefore rewritten by a pure
  *    function, with no lookup tables, and re-running the script updates the same rows (upsert).
  *  - The original Firestore id is kept in legacy_firebase_id.
+ *  - Rows that already exist in Supabase (matched on legacy_firebase_id / legacy_source_id) are REUSED:
+ *    their existing ids are used for new references and the rows are skipped, never duplicated.
+ *    --update-existing overwrites them with the Firebase values instead.
+ *    The run aborts if a table already holds rows for a company but none of them can be matched
+ *    (that would create duplicates); --allow-unmatched overrides the guard.
  *  - Fields that are not columns are kept in the `metadata` jsonb column (nothing is dropped).
  *  - Firestore Timestamps become ISO strings.
  *  - Firebase password hashes cannot be imported by Supabase Auth: users get a random password
@@ -32,6 +39,8 @@ const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(`--${name}`);
 const opt = (name) => argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 const APPLY = flag('apply');
+const UPDATE_EXISTING = flag('update-existing');
+const ALLOW_UNMATCHED = flag('allow-unmatched');
 const VERIFY = flag('verify');
 const ONLY = opt('collections')?.split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -61,7 +70,14 @@ const uuidV5 = (name) => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const newId = (collection, oldId) => (oldId ? (UUID_RE.test(oldId) ? oldId : uuidV5(`${collection}:${oldId}`)) : null);
+// "<collection>:<firestoreId>" -> id of the row that already exists in Supabase
+const EXISTING_IDS = new Map();
+const newId = (collection, oldId) => {
+  if (!oldId) return null;
+  if (UUID_RE.test(oldId)) return oldId;
+  return EXISTING_IDS.get(`${collection}:${oldId}`) || uuidV5(`${collection}:${oldId}`);
+};
+const isExisting = (collection, oldId) => EXISTING_IDS.has(`${collection}:${oldId}`);
 
 // Firebase Auth uid -> Supabase auth user id (filled while migrating users)
 const authIdByUid = new Map();
@@ -243,6 +259,35 @@ async function readAll(collection) {
   return snap.docs.map((d) => ({ id: d.id, data: d.data() }));
 }
 
+/** Reads (legacy id -> id) for every migrated table so existing rows are reused, not duplicated. */
+let targetReadable = false;
+async function loadExistingIds() {
+  const probe = await sb.from('companies').select('id').limit(1);
+  if (probe.error) {
+    if (APPLY || VERIFY) throw new Error(`Cannot read Supabase (${probe.error.message}). Check SUPABASE_SERVICE_ROLE_KEY.`);
+    console.warn('! Supabase not readable with this key: the preview assumes an EMPTY target (duplicates not detected).');
+    return;
+  }
+  targetReadable = true;
+  const page = 1000;
+  const fetchAll = async (table, column) => {
+    const out = [];
+    for (let from = 0; ; from += page) {
+      const { data, error } = await sb.from(table).select(`id,${column}`).not(column, 'is', null).range(from, from + page - 1);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      out.push(...data);
+      if (data.length < page) return out;
+    }
+  };
+  for (const row of await fetchAll('companies', 'legacy_source_id')) EXISTING_IDS.set(`companies:${row.legacy_source_id}`, row.id);
+  for (const [collection, spec] of Object.entries(MAP)) {
+    for (const row of await fetchAll(spec.table, 'legacy_firebase_id')) {
+      EXISTING_IDS.set(`${collection}:${row.legacy_firebase_id}`, row.id);
+    }
+  }
+  console.log(`• target already holds ${EXISTING_IDS.size} migrated rows (matched by legacy id)`);
+}
+
 async function upsertBatches(table, rows, conflict = 'id') {
   const size = 500;
   for (let i = 0; i < rows.length; i += size) {
@@ -273,8 +318,9 @@ async function migrateCompanies() {
       ...(created_at ? { created_at } : {}),
     };
   });
-  note('companies', { read: docs.length, write: APPLY ? rows.length : 0 });
-  if (APPLY && rows.length) await upsertBatches('companies', rows);
+  const fresh = rows.filter((r) => UPDATE_EXISTING || !isExisting('companies', r.legacy_source_id));
+  note('companies', { read: docs.length, already_in_supabase: docs.length - rows.filter((r) => !isExisting('companies', r.legacy_source_id)).length, to_write: fresh.length, write: APPLY ? fresh.length : 0 });
+  if (APPLY && fresh.length) await upsertBatches('companies', fresh);
   return new Map(docs.map(({ id }) => [id, newId('companies', id)]));
 }
 
@@ -359,8 +405,18 @@ async function migrateCollection(collection, companyIds) {
     if (!companyUuid) { orphans += 1; continue; }
     rows.push(transform(collection, id, data, companyUuid));
   }
-  note(collection, { read: docs.length, write: APPLY ? rows.length : 0, would_write: rows.length, skipped_no_company: orphans });
-  if (APPLY && rows.length) await upsertBatches(spec.table, rows);
+  const present = rows.filter((r) => isExisting(collection, r.legacy_firebase_id));
+  const fresh = UPDATE_EXISTING ? rows : rows.filter((r) => !isExisting(collection, r.legacy_firebase_id));
+
+  // Guard: rows already in the target for these companies but none matched by legacy id => duplicates ahead.
+  if (targetReadable && !ALLOW_UNMATCHED && fresh.length && !present.length) {
+    const { count } = await sb.from(spec.table).select('id', { count: 'exact', head: true }).in('company_id', [...new Set(rows.map((r) => r.company_id))]);
+    if (count > 0) {
+      throw new Error(`${collection}: Supabase already has ${count} row(s) for these companies but none match by legacy_firebase_id; refusing to create duplicates. Inspect the data, or pass --allow-unmatched.`);
+    }
+  }
+  note(collection, { read: docs.length, already_in_supabase: present.length, to_write: fresh.length, write: APPLY ? fresh.length : 0, skipped_no_company: orphans });
+  if (APPLY && fresh.length) await upsertBatches(spec.table, fresh);
 }
 
 // Dependency order keeps references meaningful even without FK enforcement on legacy text ids.
@@ -379,7 +435,7 @@ async function verify(companyIds) {
   for (const collection of ORDER.filter((c) => !ONLY || ONLY.includes(c))) {
     const spec = MAP[collection];
     const [{ count: fbCount }, { count: sbCount, error }] = await Promise.all([
-      fdb.collection(collection).count().get().then((s) => ({ count: s.data().count })),
+      fdb.collection(collection).where('company_id', 'in', [...companyIds.keys()]).count().get().then((s) => ({ count: s.data().count })),
       sb.from(spec.table).select('id', { count: 'exact', head: true }).in('company_id', [...companyIds.values()]),
     ]);
     if (error) throw error;
@@ -407,10 +463,11 @@ async function verify(companyIds) {
 }
 
 // ─── main ───────────────────────────────────────────────────────────────────
-export { transform, newId, uuidV5, MAP };
+export { transform, newId, uuidV5, MAP, EXISTING_IDS, isExisting };
 
 async function main() {
   init();
+  await loadExistingIds();
 console.log(APPLY ? 'MODE: APPLY (writes to Supabase)' : VERIFY ? 'MODE: VERIFY' : 'MODE: DRY RUN (no writes)');
 const companyIds = await migrateCompanies();
 if (VERIFY) await verify(companyIds);
