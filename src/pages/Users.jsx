@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Check, Mail, Pencil, RefreshCw, Search, Shield, UserCog, UserPlus, X } from 'lucide-react';
+import { Check, Copy, Mail, MessageCircle, Pencil, RefreshCw, Search, Shield, UserCog, UserPlus, X } from 'lucide-react';
 
 import { PageHero, EmptyState } from '@/components/page';
 const emptyInvite = { full_name: '', email: '', job_title: '', role: 'sales_rep', expires_in_hours: '168', permission_overrides: {} };
@@ -58,9 +58,28 @@ export default function Users() {
     const usersQuery = useQuery({ queryKey: ['users', companyId], queryFn: () => getUsers(companyId), enabled: Boolean(companyId) });
     const invitationsQuery = useQuery({ queryKey: ['invitations', companyId], queryFn: () => listManagedInvitations(companyId), enabled: Boolean(companyId) });
     const refresh = () => { queryClient.invalidateQueries({ queryKey: ['users', companyId] }); queryClient.invalidateQueries({ queryKey: ['invitations', companyId] }); };
-    const inviteMutation = useMutation({ mutationFn: () => createInvitation({ ...invite, company_id: companyId, expires_in_hours: Number(invite.expires_in_hours) }), onSuccess: () => { toast({ title: 'تم إرسال الدعوة بنجاح' }); setInvite(emptyInvite); setInviteOpen(false); refresh(); }, onError: (error) => toast({ title: 'تعذر إرسال الدعوة', description: error.message, variant: 'destructive' }) });
+    // On Supabase the invitation function does not send e-mail: it returns a one-time link
+    // (accept_url) that the manager must pass on. Show it instead of claiming it was sent.
+    const [inviteLink, setInviteLink] = useState(null);
+    const announceInvite = (result, email) => {
+        if (result?.accept_url) {
+            setInviteLink({ url: result.accept_url, email });
+            toast({ title: 'تم إنشاء رابط الدعوة', description: 'انسخ الرابط وأرسله للمستخدم.' });
+        } else {
+            toast({ title: 'تم إرسال الدعوة بنجاح' });
+        }
+    };
+    const copyInviteLink = async () => {
+        try {
+            await navigator.clipboard.writeText(inviteLink.url);
+            toast({ title: 'تم نسخ الرابط' });
+        } catch {
+            toast({ title: 'تعذر النسخ تلقائيًا', description: 'حدّد الرابط وانسخه يدويًا.', variant: 'destructive' });
+        }
+    };
+    const inviteMutation = useMutation({ mutationFn: () => createInvitation({ ...invite, company_id: companyId, expires_in_hours: Number(invite.expires_in_hours) }), onSuccess: (result) => { announceInvite(result, invite.email); setInvite(emptyInvite); setInviteOpen(false); refresh(); }, onError: (error) => toast({ title: 'تعذر إرسال الدعوة', description: error.message, variant: 'destructive' }) });
     const userMutation = useMutation({ mutationFn: () => updateManagedUserSecure(editing), onSuccess: () => { toast({ title: 'تم تحديث وصول المستخدم' }); setEditOpen(false); refresh(); }, onError: (error) => toast({ title: 'تعذر تحديث المستخدم', description: error.message, variant: 'destructive' }) });
-    const resendMutation = useMutation({ mutationFn: resendInvitation, onSuccess: () => { toast({ title: 'تمت إعادة إرسال الدعوة' }); refresh(); }, onError: (error) => toast({ title: 'تعذر إعادة الإرسال', description: error.message, variant: 'destructive' }) });
+    const resendMutation = useMutation({ mutationFn: resendInvitation, onSuccess: (result) => { announceInvite(result, ''); refresh(); }, onError: (error) => toast({ title: 'تعذر إعادة الإرسال', description: error.message, variant: 'destructive' }) });
     const revokeMutation = useMutation({ mutationFn: revokeInvitation, onSuccess: () => { toast({ title: 'تم إلغاء الدعوة' }); refresh(); }, onError: (error) => toast({ title: 'تعذر إلغاء الدعوة', description: error.message, variant: 'destructive' }) });
     const visibleUsers = useMemo(() => (usersQuery.data || []).filter((item) => `${item.name || ''} ${item.email || ''}`.toLowerCase().includes(search.toLowerCase())), [usersQuery.data, search]);
     const pending = useMemo(() => (invitationsQuery.data || []).filter((item) => item.status === 'pending' || item.status === 'failed'), [invitationsQuery.data]);
@@ -81,6 +100,23 @@ export default function Users() {
         <section className="rounded-2xl border border-border bg-card shadow-card"><div className="flex items-center gap-3 border-b border-border p-5"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary"><Mail className="h-[18px] w-[18px]" /></span><h2 className="text-base font-bold text-foreground">الدعوات المفتوحة</h2></div><div className="divide-y divide-border">{pending.length ? pending.map((item) => <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between" key={item.id}><div><p className="font-bold">{item.full_name || item.email}</p><p className="text-xs text-muted-foreground">{item.email} · ينتهي {stamp(item.expires_at)}</p></div><div className="flex items-center gap-2"><Badge className={statusTone(item.status)}>{item.status}</Badge><Button size="sm" variant="outline" disabled={resendMutation.isPending} onClick={() => resendMutation.mutate(item.id)}><RefreshCw className="ml-1 h-3 w-3" />إرسال مجددًا</Button><Button size="sm" variant="ghost" className="text-destructive" disabled={revokeMutation.isPending} onClick={() => revokeMutation.mutate(item.id)}><X className="ml-1 h-3 w-3" />إلغاء</Button></div></div>) : <EmptyState icon={Mail} text="لا توجد دعوات معلقة." />}</div></section>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>دعوة موظف إلى {tenant?.name || 'المنظمة'}</DialogTitle></DialogHeader><div className="grid gap-4 md:grid-cols-2"><label className="space-y-1 text-sm">الاسم الكامل<Input value={invite.full_name} onChange={(e) => setInvite({ ...invite, full_name: e.target.value })} /></label><label className="space-y-1 text-sm">البريد الإلكتروني *<Input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} /></label><label className="space-y-1 text-sm">المسمى الوظيفي<Input value={invite.job_title} onChange={(e) => setInvite({ ...invite, job_title: e.target.value })} /></label><label className="space-y-1 text-sm">صلاحية الدعوة<Select value={invite.expires_in_hours} onValueChange={(expires_in_hours) => setInvite({ ...invite, expires_in_hours })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="24">24 ساعة</SelectItem><SelectItem value="168">7 أيام</SelectItem><SelectItem value="720">30 يومًا</SelectItem></SelectContent></Select></label><label className="space-y-1 text-sm md:col-span-2">الدور<Select value={invite.role} onValueChange={(role) => setInvite({ ...invite, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLE_OPTIONS.filter((role) => role !== 'owner').map((role) => <SelectItem value={role} key={role}>{ROLE_LABELS[role]}</SelectItem>)}</SelectContent></Select></label></div><PermissionEditor target={invite} setter={setInvite} toggleAll={toggleAll} /><Button disabled={!invite.email || inviteMutation.isPending} onClick={() => inviteMutation.mutate()}>{inviteMutation.isPending ? 'جارٍ الإرسال…' : <><Mail className="ml-2 h-4 w-4" />إرسال دعوة آمنة</>}</Button></DialogContent></Dialog>
         <Dialog open={editOpen} onOpenChange={setEditOpen}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>تعديل وصول المستخدم</DialogTitle></DialogHeader><div className="grid gap-4 md:grid-cols-2"><label className="space-y-1 text-sm">الاسم<Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></label><label className="space-y-1 text-sm">المسمى الوظيفي<Input value={editing.job_title} onChange={(e) => setEditing({ ...editing, job_title: e.target.value })} /></label><label className="space-y-1 text-sm">الدور<Select value={editing.role} onValueChange={(role) => setEditing({ ...editing, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLE_OPTIONS.map((role) => <SelectItem value={role} key={role}>{ROLE_LABELS[role]}</SelectItem>)}</SelectContent></Select></label><label className="space-y-1 text-sm">حالة الحساب<Select value={editing.status} onValueChange={(status) => setEditing({ ...editing, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">نشط</SelectItem><SelectItem value="suspended">موقوف</SelectItem></SelectContent></Select></label></div><PermissionEditor target={editing} setter={setEditing} toggleAll={toggleAll} /><Button disabled={userMutation.isPending} onClick={() => userMutation.mutate()}>{userMutation.isPending ? 'جارٍ الحفظ…' : <><Check className="ml-2 h-4 w-4" />حفظ التغييرات</>}</Button></DialogContent></Dialog>
+        <Dialog open={Boolean(inviteLink)} onOpenChange={(open) => { if (!open) setInviteLink(null); }}>
+            <DialogContent className="max-w-lg" dir="rtl">
+                <DialogHeader><DialogTitle>رابط الدعوة</DialogTitle></DialogHeader>
+                <p className="text-sm text-muted-foreground">
+                    لم يُرسَل بريد تلقائي. أرسل هذا الرابط {inviteLink?.email ? `إلى ${inviteLink.email} ` : ''}بنفسك. الرابط يعمل مرة واحدة وينتهي بانتهاء الدعوة، ولا يظهر مرة أخرى.
+                </p>
+                <Input readOnly dir="ltr" value={inviteLink?.url || ''} onFocus={(e) => e.target.select()} />
+                <div className="flex flex-wrap gap-2">
+                    <Button onClick={copyInviteLink}><Copy className="ml-2 h-4 w-4" />نسخ الرابط</Button>
+                    <Button variant="outline" asChild>
+                        <a href={`https://wa.me/?text=${encodeURIComponent(`دعوة للانضمام إلى ${tenant?.name || 'NEXORA ERP'}: ${inviteLink?.url || ''}`)}`} target="_blank" rel="noreferrer">
+                            <MessageCircle className="ml-2 h-4 w-4" />إرسال عبر واتساب
+                        </a>
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     </div>;
 }
 
