@@ -10,6 +10,8 @@ import {
     serverTimestamp,
 } from 'firebase/firestore';
 import { getActiveCompanyId } from './currentTenant';
+import { isSupabaseBackend } from '@/api/backend';
+import { fetchRows, insertRow, upsertRow } from '@/data/supabaseTenantDb';
 
 /**
  * مرجع مجموعة فايربيس
@@ -29,7 +31,7 @@ export const withTenant = (data = {}) => {
         // Never accept a tenant supplied by a UI payload. The active company is
         // derived from the signed-in profile, while Firestore Rules verify it.
         company_id: activeCompanyId,
-        updated_at: serverTimestamp(),
+        updated_at: isSupabaseBackend ? new Date().toISOString() : serverTimestamp(),
     };
 };
 
@@ -68,6 +70,19 @@ export const fetchTenantDocs = async (collectionName, options = {}) => {
     }
     const targetCompanyId = activeCompanyId;
 
+    if (isSupabaseBackend) {
+        // Server-side ordering/index fallbacks are Firestore-only; Postgres orders by created_at.
+        try {
+            let items = await fetchRows(collectionName, { companyId: targetCompanyId });
+            if (filterFn) items = items.filter(filterFn);
+            if (sortFn) items = items.sort(sortFn);
+            return items;
+        } catch (error) {
+            console.error(`[tenantDb] Error fetching rows for "${collectionName}":`, error);
+            return [];
+        }
+    }
+
     const colRef = collection(db, collectionName);
 
     // 1. محاولة الاستعلام بالترتيب من السيرفر إذا تم توفير قيد ترتيب
@@ -103,12 +118,17 @@ export const fetchTenantDocs = async (collectionName, options = {}) => {
  * حفظ أو إضافة مستند مع وسم الشركة تلقائياً
  */
 export const addTenantDoc = async (collectionName, data) => {
+    if (isSupabaseBackend) return await insertRow(collectionName, withTenant(data));
     const payload = withTenant(data);
     payload.created_at = serverTimestamp();
     return await addDoc(collection(db, collectionName), payload);
 };
 
 export const setTenantDoc = async (collectionName, docId, data, merge = true) => {
+    if (isSupabaseBackend) {
+        // Postgres upsert always merges; `merge = false` (full replace) is not supported.
+        return await upsertRow(collectionName, docId, withTenant(data));
+    }
     const payload = withTenant(data);
     const docRef = doc(db, collectionName, docId);
     return await setDoc(docRef, payload, { merge });
