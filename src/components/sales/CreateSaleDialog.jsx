@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/api/firebase';
 import { collection, doc, increment, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { withTenant } from '@/lib/tenantFirestore';
+import { isSupabaseBackend } from '@/api/backend';
+import { createSalesInvoice } from '@/firebase/collections/sales';
 
 import {
     Dialog,
@@ -47,6 +49,13 @@ import { getCustomers } from '@/firebase/collections/customers';
 import { getAccounts } from '@/firebase/collections/accounts';
 import { useReactToPrint } from 'react-to-print';
 import { useAuth } from '@/lib/AuthContext';
+
+// Supabase: the whole sale (stock, customer debt, cashbox, cashflow) is one server-side transaction.
+const saveSaleOnSupabase = async (saleData) => {
+    const result = await createSalesInvoice(saleData);
+    if (!result?.success) throw result?.error || new Error(result?.message || 'تعذر حفظ الفاتورة.');
+    return result;
+};
 
 export default function CreateSaleDialog({
     open,
@@ -408,7 +417,7 @@ export default function CreateSaleDialog({
                 created_by: user?.uid || null,
             };
 
-            await runTransaction(db, async (transaction) => {
+            await (isSupabaseBackend ? saveSaleOnSupabase(saleData) : runTransaction(db, async (transaction) => {
                 const productSnapshots = [];
                 const customerRef = selectedCustomerId ? doc(db, 'customers', selectedCustomerId) : null;
                 const customerSnap = customerRef ? await transaction.get(customerRef) : null;
@@ -567,7 +576,7 @@ export default function CreateSaleDialog({
                         timestamp: serverTimestamp(),
                     }));
                 }
-            });
+            }));
 
             const savedSale = {
                 ...saleData,

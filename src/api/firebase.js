@@ -29,11 +29,15 @@ if (!firebaseConfigValid) {
     console.warn('Make sure to set the VITE_FIREBASE_* env vars in a local .env file.');
 }
 
-const app = initializeApp(firebaseConfig);
+// Without a complete config (e.g. a Supabase-only deployment with no VITE_FIREBASE_* variables)
+// Firebase is simply not started: getAuth() would otherwise throw "invalid-api-key" at import
+// time and leave the whole app blank. Every Firebase service is null in that case.
+const app = firebaseConfigValid ? initializeApp(firebaseConfig) : null;
 const appCheckSiteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY || '';
 const appCheckEnabled = import.meta.env.VITE_FIREBASE_APPCHECK_ENABLED === 'true'
     || (import.meta.env.PROD && Boolean(appCheckSiteKey));
-const canInitializeAppCheck = appCheckEnabled
+const canInitializeAppCheck = Boolean(app)
+    && appCheckEnabled
     && appCheckSiteKey
     && typeof window !== 'undefined'
     && typeof document !== 'undefined';
@@ -50,14 +54,14 @@ if (appCheckEnabled && !appCheckSiteKey) {
     );
 }
 
-const functions = getFunctions(app);
-if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === 'true') {
+const functions = app ? getFunctions(app) : null;
+if (functions && import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === 'true') {
     connectFunctionsEmulator(functions, 'localhost', 5001);
     console.info('[firebase] Using local Functions emulator at localhost:5001');
 }
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const storage = app ? getStorage(app) : null;
 export { firebaseConfig, functions };
 export default app;

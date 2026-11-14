@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Save, Loader2, MessageCircle } from 'lucide-react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from '@/data/firestoreCompat';
 import { db } from '@/api/firebase';
 import { useTenant } from '@/lib/TenantContext';
 import { normalizeWaNumber, formatWaDisplay, isValidWaNumber } from '@/utils/whatsapp';

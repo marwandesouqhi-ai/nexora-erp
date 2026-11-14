@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../api/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from '@/data/firestoreCompat';
 import { setActiveCompanyId, getActiveCompanyId } from './currentTenant';
 import { setCompanyAdminWhatsapp } from '@/utils/whatsapp';
 

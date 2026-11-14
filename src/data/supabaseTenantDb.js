@@ -24,6 +24,10 @@ class CompatTimestamp extends Date {
 
 const columnsOf = (table) => TABLE_COLUMNS[table] || null;
 
+/** Tenant scope: every table filters on company_id, except `companies` itself (its own id). */
+const scoped = (query, table) =>
+    table === 'companies' ? query.eq('id', getActiveCompanyId()) : query.eq('company_id', getActiveCompanyId());
+
 /** Firestore FieldValue sentinels (serverTimestamp, increment...) cannot be stored. */
 const isFieldValueSentinel = (v) =>
     v && typeof v === 'object' && typeof v._methodName === 'string';
@@ -97,8 +101,7 @@ export async function fetchRows(collectionName, { companyId = null } = {}) {
 export async function fetchRowById(collectionName, id) {
     const table = resolveTable(collectionName);
     const [col, val] = idFilter(id);
-    const { data, error } = await getSupabase()
-        .from(table).select('*').eq('company_id', getActiveCompanyId()).eq(col, val).maybeSingle();
+    const { data, error } = await scoped(getSupabase().from(table).select('*'), table).eq(col, val).maybeSingle();
     if (error) throw error;
     return data ? toDomainRow(table, data) : null;
 }
@@ -146,8 +149,7 @@ export async function updateRow(collectionName, id, data) {
     if (Object.keys(increments).length) {
         // No server-side increment from the client: read the row and add. Financial
         // balances must use the RPCs; this path is only for low-contention counters.
-        const { data: current, error: incError } = await sb.from(table).select('*')
-            .eq('company_id', getActiveCompanyId()).eq(col, val).maybeSingle();
+        const { data: current, error: incError } = await scoped(sb.from(table).select('*'), table).eq(col, val).maybeSingle();
         if (incError) throw incError;
         if (!current) throw new Error('Document not found');
         const flat = toDomainRow(table, current);
@@ -159,14 +161,13 @@ export async function updateRow(collectionName, id, data) {
     }
     if (Object.keys(metadata).length) {
         // Merge into the existing metadata instead of replacing it.
-        const { data: row, error: readError } = await sb.from(table).select('metadata')
-            .eq('company_id', getActiveCompanyId()).eq(col, val).maybeSingle();
+        const { data: row, error: readError } = await scoped(sb.from(table).select('metadata'), table).eq(col, val).maybeSingle();
         if (readError) throw readError;
         if (!row) throw new Error('Document not found');
         patch.metadata = { ...(row.metadata || {}), ...metadata };
     }
     if (!columnsOf(table)?.updated_at) delete patch.updated_at;
-    const { error } = await sb.from(table).update(patch).eq('company_id', getActiveCompanyId()).eq(col, val);
+    const { error } = await scoped(sb.from(table).update(patch), table).eq(col, val);
     if (error) throw error;
 }
 
