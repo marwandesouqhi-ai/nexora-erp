@@ -1,6 +1,8 @@
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, firebaseConfig } from '../api/firebase';
+import { isSupabaseBackend } from '../api/backend';
+import { callFunction } from '../api/functions';
 import {
     collection,
     doc,
@@ -186,6 +188,25 @@ export const createTenantUserAccount = async ({
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    if (isSupabaseBackend) {
+        // Created server-side (service role); the caller must be a platform admin or a user manager.
+        try {
+            const created = await callFunction('createManagedUser', {
+                name: name?.trim() || 'مسؤول الشركة',
+                email: cleanEmail,
+                password,
+                phone: phone?.trim() || '',
+                role: role || 'owner',
+                company_id: tenantId,
+                status: 'active',
+            });
+            return { success: true, uid: created.id, user: { uid: created.id, email: cleanEmail, role, company_id: tenantId } };
+        } catch (error) {
+            throw new Error(error.message || 'فشل إنشاء حساب المستخدم', { cause: error });
+        }
+    }
+
     const secondaryAppName = `TenantUserCreation_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
     const secondaryAuth = getAuth(secondaryApp);

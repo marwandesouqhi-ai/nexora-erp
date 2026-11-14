@@ -36,6 +36,15 @@ import {
 } from 'firebase/firestore';
 import { createTenantQuery } from '@/lib/tenantFirestore';
 import { getActiveCompanyId } from '@/lib/currentTenant';
+import { isSupabaseBackend } from '@/api/backend';
+import {
+    addCustomerMessageSb,
+    createTicketSb,
+    subscribeCompanyTicketsSb,
+    subscribeTicketMessagesSb,
+    updateTicketSb,
+    uploadTicketAttachmentsSb,
+} from '@/data/supabaseSupport';
 
 export const SUPPORT_TICKETS_COLLECTION = 'support_tickets';
 
@@ -85,6 +94,7 @@ const safeName = (name) => String(name || 'file').replace(/[^\p{L}\p{N}._-]+/gu,
 export const uploadTicketAttachments = async (companyId, ticketId, files = []) => {
     const error = validateAttachments(files);
     if (error) throw new Error(error);
+    if (isSupabaseBackend) return uploadTicketAttachmentsSb(companyId, ticketId, files, safeName);
     return Promise.all(
         files.map(async (file, i) => {
             const path = `${SUPPORT_TICKETS_COLLECTION}/${companyId}/${ticketId}/${Date.now()}_${i}_${safeName(file.name)}`;
@@ -165,6 +175,7 @@ const newTicketNumber = () => `TKT-${Date.now().toString(36).toUpperCase().slice
 
 /** استماع لحظي لتذاكر الشركة الحالية (الأحدث نشاطاً أولاً) */
 export const subscribeCompanyTickets = (onData, onError) => {
+    if (isSupabaseBackend) return subscribeCompanyTicketsSb(onData, onError);
     const q = createTenantQuery(SUPPORT_TICKETS_COLLECTION);
     return onSnapshot(
         q,
@@ -185,6 +196,7 @@ export const subscribeCompanyTickets = (onData, onError) => {
  * (الفلاتر company_id + internal مطلوبة لتطابق قواعد Firestore)
  */
 export const subscribeTicketMessages = (ticketId, onData, onError) => {
+    if (isSupabaseBackend) return subscribeTicketMessagesSb(ticketId, onData, onError);
     const companyId = getActiveCompanyId();
     const q = query(
         collection(db, SUPPORT_TICKETS_COLLECTION, ticketId, 'messages'),
@@ -212,6 +224,20 @@ export const createSupportTicket = async ({ subject, category, priority, body },
     const fileError = validateAttachments(files);
     if (fileError) throw new Error(fileError);
     const author = actorOf(user);
+
+    if (isSupabaseBackend) {
+        const ticketId = await createTicketSb({
+            companyId,
+            companyName,
+            subject: String(subject || '').trim(),
+            category: TICKET_CATEGORIES[category] ? category : 'other',
+            priority: TICKET_PRIORITIES[priority] ? priority : 'normal',
+            author,
+        });
+        const attachments = files.length ? await uploadTicketAttachments(companyId, ticketId, files) : [];
+        await addCustomerMessageSb({ ticketId, companyId, body: String(body || '').trim(), author, attachments });
+        return ticketId;
+    }
 
     const ticketRef = await addDoc(collection(db, SUPPORT_TICKETS_COLLECTION), {
         company_id: companyId,
@@ -253,6 +279,11 @@ export const replyToTicket = async (ticket, body, user, files = []) => {
     const text = String(body || '').trim();
     if (!text && !files.length) return;
     const attachments = files.length ? await uploadTicketAttachments(ticket.company_id, ticket.id, files) : [];
+    if (isSupabaseBackend) {
+        // The DB trigger reopens the ticket and updates counters, preview and unread flags.
+        await addCustomerMessageSb({ ticketId: ticket.id, companyId: ticket.company_id, body: text, author: actorOf(user), attachments });
+        return;
+    }
     await addDoc(collection(db, SUPPORT_TICKETS_COLLECTION, ticket.id, 'messages'), {
         company_id: ticket.company_id,
         body: text,
@@ -278,11 +309,15 @@ export const replyToTicket = async (ticket, body, user, files = []) => {
 
 /** تعليم التذكرة كمقروءة من جهة العميل */
 export const markTicketReadByCustomer = async (ticketId) => {
+    if (isSupabaseBackend) return updateTicketSb(ticketId, { unread_for_customer: false });
     await updateDoc(doc(db, SUPPORT_TICKETS_COLLECTION, ticketId), { unread_for_customer: false });
 };
 
 /** إغلاق / إعادة فتح التذكرة من جهة العميل */
 export const setTicketClosedByCustomer = async (ticketId, closed) => {
+    if (isSupabaseBackend) {
+        return updateTicketSb(ticketId, { status: closed ? 'closed' : 'open', ...(closed ? {} : { unread_for_staff: true }) });
+    }
     await updateDoc(doc(db, SUPPORT_TICKETS_COLLECTION, ticketId), {
         status: closed ? 'closed' : 'open',
         updated_at: serverTimestamp(),

@@ -41,6 +41,7 @@ function toDomainRow(table, row) {
         if (key === 'metadata') continue;
         out[key] = cols[key] === 'tstz' && value ? new CompatTimestamp(value) : value;
     }
+    if (table === 'profiles') out.uid = row.id; // same shape as the old users/{uid} documents
     // Free-form fields never override real columns.
     if (row.metadata && typeof row.metadata === 'object') {
         for (const [k, v] of Object.entries(row.metadata)) {

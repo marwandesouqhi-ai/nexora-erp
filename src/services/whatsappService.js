@@ -1,5 +1,4 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/api/firebase';
+import { callFunction } from '@/api/functions';
 import { getWaUrl, getCompanyAdminWhatsapp, formatWaDisplay } from '@/utils/whatsapp';
 
 /**
@@ -46,9 +45,7 @@ const sendWhatsappRequest = async ({ to, body, priority = '1' }) => {
     }
 
     try {
-        const sendWhatsappCallable = httpsCallable(functions, 'sendWhatsappMessage');
-        const response = await sendWhatsappCallable({ phone: formattedPhone, message: body.trim(), priority });
-        const result = response?.data;
+        const result = await callFunction('sendWhatsappMessage', { phone: formattedPhone, message: body.trim(), priority });
 
         if (!result?.success) {
             throw new Error(result?.message || '❌ فشل في إرسال الرسالة عبر الخادم');
@@ -153,9 +150,7 @@ export const checkWhatsappConnection = async (options = {}) => {
     // 1. في حال طلب المستخدم فحص الخادم السحابي عن بُعد
     if (checkRemote) {
         try {
-            const checkConnectionCallable = httpsCallable(functions, 'checkWhatsappConnection');
-            const response = await checkConnectionCallable();
-            const result = response?.data;
+            const result = await callFunction('checkWhatsappConnection');
 
             if (result?.success && result?.result) {
                 return {

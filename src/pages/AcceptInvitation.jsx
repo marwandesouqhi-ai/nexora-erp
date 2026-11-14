@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { signInWithCustomToken } from 'firebase/auth';
 import { auth } from '@/api/firebase';
-import { functions } from '@/api/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { isSupabaseBackend } from '@/api/backend';
+import { signInWithPassword, recordAuthenticationEvent } from '@/lib/authService';
 import { acceptInvitation, verifyInvitation } from '@/services/invitationService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,8 +42,12 @@ export default function AcceptInvitation() {
         setSubmitting(true);
         try {
             const result = await acceptInvitation(token, password);
-            await signInWithCustomToken(auth, result.custom_token);
-            await httpsCallable(functions, 'recordAuthenticationEvent')({ action: 'login' });
+            if (isSupabaseBackend) {
+                await signInWithPassword(result.email || invite.email, password);
+            } else {
+                await signInWithCustomToken(auth, result.custom_token);
+            }
+            await recordAuthenticationEvent('login');
             navigate('/', { replace: true });
         } catch (err) {
             setError(err?.message || 'تعذر قبول الدعوة. حاول مرة أخرى.');

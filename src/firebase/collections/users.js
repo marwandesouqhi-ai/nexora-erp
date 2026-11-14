@@ -1,5 +1,4 @@
-import { functions } from '@/api/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { callFunction } from '@/api/functions';
 import { fetchTenantDocs, withTenant } from '@/lib/tenantFirestore';
 
 export const getUsers = async (companyId = null) => {
@@ -15,14 +14,14 @@ export const getUsers = async (companyId = null) => {
 
 export const addUser = async (data) => {
     const payload = withTenant(data);
-    return httpsCallable(functions, 'createManagedUser')(payload);
+    return callFunction('createManagedUser', payload);
 };
 
 export const updateUser = async (id, data) => {
     const payload = withTenant(data);
-    await httpsCallable(functions, 'updateManagedUser')({ id, ...payload });
+    await callFunction('updateManagedUser', { id, ...payload });
 };
 
 export const deleteUserDoc = async (id) => {
-    await httpsCallable(functions, 'deleteManagedUser')({ id });
+    await callFunction('deleteManagedUser', { id });
 };

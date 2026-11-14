@@ -14,7 +14,10 @@ import {
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../lib/firebase';
+import { getSupabase } from '../lib/supabase';
+import { isSupabaseBackend } from '../lib/backend';
 import { logAction } from './auditService';
+import { getCurrentUserEmail } from './authService';
 import type { SupportTicket, TicketAttachment, TicketMessage, TicketPriority, TicketStatus } from '../types';
 
 const COL = 'support_tickets';
@@ -65,6 +68,65 @@ const uploadAttachments = async (ticket: SupportTicket, files: File[], internal:
             return { name: file.name, url: await getDownloadURL(fileRef), path, content_type: file.type, size: file.size };
         })
     );
+};
+
+// ─── Supabase implementation ─────────────────────────────────────────────────
+// Counters, unread flags and status transitions are maintained by DB triggers,
+// so staff only insert messages and update priority/status/assignment.
+const SB_BUCKET = 'support-attachments';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sbLive = <T,>(name: string, table: string, filter: string | null, load: () => Promise<T[]>, onData: (rows: T[]) => void, onError?: (e: Error) => void): Unsubscribe => {
+  const sb = getSupabase();
+  let active = true;
+  const refresh = async () => {
+    try {
+      const rows = await load();
+      if (active) onData(rows);
+    } catch (err) {
+      if (active) onError?.(err as Error);
+    }
+  };
+  const channel = sb
+    .channel(name)
+    .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, () => { void refresh(); })
+    .subscribe();
+  void refresh();
+  return () => {
+    active = false;
+    void sb.removeChannel(channel);
+  };
+};
+
+const sbSignMessages = async (messages: TicketMessage[]): Promise<TicketMessage[]> => {
+  const paths = [...new Set(messages.flatMap((m) => (m.attachments || []).map((a) => a.path)).filter(Boolean))];
+  if (!paths.length) return messages;
+  const { data, error } = await getSupabase().storage.from(SB_BUCKET).createSignedUrls(paths, 3600);
+  if (error) {
+    console.error('could not sign attachment URLs', error.message);
+    return messages;
+  }
+  const urlByPath = Object.fromEntries((data || []).map((d) => [d.path, d.signedUrl]));
+  return messages.map((m) => ({ ...m, attachments: (m.attachments || []).map((a) => ({ ...a, url: urlByPath[a.path] || '' })) }));
+};
+
+const sbUpload = async (ticket: SupportTicket, files: File[], internal: boolean): Promise<TicketAttachment[]> => {
+  const bucket = getSupabase().storage.from(SB_BUCKET);
+  const base = internal ? `internal/${ticket.id}` : `${ticket.company_id}/${ticket.id}`;
+  return Promise.all(
+    files.map(async (file, i) => {
+      const path = `${base}/${Date.now()}_${i}_${safeName(file.name)}`;
+      const { error } = await bucket.upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      return { name: file.name, url: '', path, content_type: file.type, size: file.size };
+    })
+  );
+};
+
+const sbActor = async () => {
+  const { data } = await getSupabase().auth.getUser();
+  const email = data.user?.email || '';
+  return { uid: data.user?.id || '', name: email.split('@')[0] || 'فريق الدعم', email };
 };
 
 export const TICKET_CATEGORIES: Record<string, string> = {
@@ -120,7 +182,13 @@ const preview = (text: string) => {
 
 /** كل التذاكر لكل الشركات — للفريق فقط (مطبق في firestore.rules) */
 export const subscribeAllTickets = (onData: (t: SupportTicket[]) => void, onError?: (e: Error) => void): Unsubscribe =>
-    onSnapshot(
+    isSupabaseBackend
+        ? sbLive<SupportTicket>('staff-tickets', 'support_tickets', null, async () => {
+            const { data, error } = await getSupabase().from('support_tickets').select('*').order('last_message_at', { ascending: false });
+            if (error) throw error;
+            return (data || []) as SupportTicket[];
+        }, onData, onError)
+        : onSnapshot(
         collection(db, COL),
         (snap) => {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SupportTicket);
@@ -139,7 +207,13 @@ export const subscribeTicketMessages = (
     onData: (m: TicketMessage[]) => void,
     onError?: (e: Error) => void
 ): Unsubscribe =>
-    onSnapshot(
+    isSupabaseBackend
+        ? sbLive<TicketMessage>(`staff-messages:${ticketId}`, 'support_messages', `ticket_id=eq.${ticketId}`, async () => {
+            const { data, error } = await getSupabase().from('support_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+            if (error) throw error;
+            return sbSignMessages((data || []) as TicketMessage[]);
+        }, onData, onError)
+        : onSnapshot(
         collection(db, COL, ticketId, 'messages'),
         (snap) => {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TicketMessage);
@@ -156,6 +230,21 @@ export const subscribeTicketMessages = (
 export const replyAsStaff = async (ticket: SupportTicket, body: string, internal: boolean, files: File[] = []) => {
     const text = body.trim();
     if (!text && !files.length) return;
+    if (isSupabaseBackend) {
+      const attachments = files.length ? await sbUpload(ticket, files, internal) : [];
+      const { error } = await getSupabase().from('support_messages').insert({
+        ticket_id: ticket.id,
+        company_id: ticket.company_id,
+        body: text,
+        author: await sbActor(),
+        author_side: 'staff',
+        internal,
+        // The stored descriptor has no URL: signed URLs are created when messages are read.
+        attachments: attachments.map(({ name, path, content_type, size }) => ({ name, path, content_type, size })),
+      });
+      if (error) throw error;
+      return;
+    }
     const attachments = files.length ? await uploadAttachments(ticket, files, internal) : [];
     await addDoc(collection(db, COL, ticket.id, 'messages'), {
         company_id: ticket.company_id,
@@ -190,16 +279,26 @@ export const updateTicketFields = async (
     ticket: SupportTicket,
     data: Partial<Pick<SupportTicket, 'status' | 'priority' | 'assigned_to'>>
 ) => {
-    await updateDoc(doc(db, COL, ticket.id), { ...data, updated_at: serverTimestamp() });
+    if (isSupabaseBackend) {
+      const { error } = await getSupabase().from('support_tickets').update(data).eq('id', ticket.id);
+      if (error) throw error;
+    } else {
+      await updateDoc(doc(db, COL, ticket.id), { ...data, updated_at: serverTimestamp() });
+    }
     const parts: string[] = [];
     if (data.status) parts.push(`الحالة → ${TICKET_STATUSES[data.status]}`);
     if (data.priority) parts.push(`الأولوية → ${TICKET_PRIORITIES[data.priority]}`);
     if (data.assigned_to !== undefined) parts.push(`الإسناد → ${data.assigned_to || 'بدون'}`);
     if (parts.length) {
-        await logAction('تحديث تذكرة دعم', auth.currentUser?.email || 'System', ticket.id, `${ticket.ticket_number}: ${parts.join('، ')}`);
+        await logAction('تحديث تذكرة دعم', await getCurrentUserEmail(), ticket.id, `${ticket.ticket_number}: ${parts.join('، ')}`);
     }
 };
 
 export const markTicketReadByStaff = async (ticketId: string) => {
+    if (isSupabaseBackend) {
+        const { error } = await getSupabase().from('support_tickets').update({ unread_for_staff: false }).eq('id', ticketId);
+        if (error) throw error;
+        return;
+    }
     await updateDoc(doc(db, COL, ticketId), { unread_for_staff: false });
 };

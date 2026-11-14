@@ -1,7 +1,6 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/api/firebase';
+import { callFunction } from '@/api/functions';
 
-const call = (name, payload) => httpsCallable(functions, name)(payload).then((result) => result.data);
+const call = (name, payload) => callFunction(name, payload);
 
 export const createInvitation = (payload) => call('createInvitation', payload);
 export const verifyInvitation = (token) => call('verifyInvitation', { token });

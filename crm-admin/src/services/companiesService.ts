@@ -1,6 +1,6 @@
 import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { callFunction } from '../lib/functions';
 import { getSupabase } from '../lib/supabase';
 import { isSupabaseBackend } from '../lib/backend';
 import type { Company } from '../types';
@@ -87,17 +87,7 @@ export const createCompany = async (data: {
   adminWhatsapp?: string;
   plan?: 'basic' | 'pro' | 'enterprise';
 }) => {
-  if (isSupabaseBackend) {
-    // Needs the `platform-admin` Edge Function (creates the owner's Auth user) - not deployed yet.
-    throw new Error('إنشاء الشركات غير متاح بعد على Supabase (يحتاج Edge Function: platform-admin).');
-  }
-  const provision = httpsCallable<typeof data, {
-    companyId: string;
-    ownerUid: string;
-    passwordResetLink: string;
-  }>(functions, 'provisionCompany');
-  const result = await provision(data);
-  return result.data;
+  return callFunction<typeof data, { companyId: string; ownerUid: string; passwordResetLink: string }>('provisionCompany', data);
 };
 
 export const deleteCompany = async (companyId: string) => {

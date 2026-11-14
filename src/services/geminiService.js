@@ -11,6 +11,8 @@
 
 import app from '@/api/firebase';
 import { appCheck } from '@/api/firebase';
+import { isSupabaseBackend } from '@/api/backend';
+import { getSupabase } from '@/api/supabase';
 
 // مفتاح التخزين المحلي لمفتاح API الشخصي
 export const PERSONAL_KEY_STORAGE = 'nexora_gemini_api_key';
@@ -144,6 +146,13 @@ export function getGeminiProviderInfo() {
         return {
             provider: 'personal',
             label: 'حسابك الشخصي (Google AI Studio)',
+            model: GEMINI_MODEL,
+        };
+    }
+    if (isSupabaseBackend) {
+        return {
+            provider: 'proxy',
+            label: 'خادم Nexora الآمن (Supabase Edge Function)',
             model: GEMINI_MODEL,
         };
     }
@@ -336,6 +345,28 @@ async function streamPersonalGeminiResponse({
 }
 
 // ====================================================
+// الذكاء الاصطناعي عبر Edge Function (ai-proxy) — المفتاح يبقى على الخادم
+// ====================================================
+
+async function askAiProxy({ userMessage, systemPrompt, history = [] }) {
+    const contents = [...toGeminiHistory(history), { role: 'user', parts: [{ text: userMessage }] }];
+    const { data, error } = await getSupabase().functions.invoke('ai-proxy', {
+        body: {
+            model: getActiveModel(),
+            contents,
+            ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
+        },
+    });
+    if (error) {
+        let detail = '';
+        try { detail = (await error.context?.json?.())?.error || ''; } catch { /* not JSON */ }
+        throw new Error(detail || error.message || 'ai-proxy request failed');
+    }
+    const text = (data?.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('');
+    return text || 'لم أتلقَّ ردًا.';
+}
+
+// ====================================================
 // إرسال رسالة مع streaming (الدالة الموحدة الرئيسية)
 // ====================================================
 
@@ -365,6 +396,23 @@ export async function streamAssistantResponse({
                 if (onChunk) onChunk(msg);
                 return msg;
             }
+        }
+    }
+
+    // 2a. Supabase: عبر Edge Function على الخادم (بدون Firebase/App Check)
+    if (isSupabaseBackend) {
+        try {
+            const text = await askAiProxy({ userMessage, systemPrompt, history });
+            if (onChunk) onChunk(text);
+            return text;
+        } catch (proxyErr) {
+            console.warn('[geminiService] ai-proxy failed:', proxyErr);
+            if (isTransientModelError(proxyErr)) {
+                const msg = '⚠️ خوادم الذكاء الاصطناعي تشهد ضغطاً مؤقتاً (Capacity Limit / 503). يُرجى المحاولة بعد لحظات.';
+                if (onChunk) onChunk(msg);
+                return msg;
+            }
+            _firebaseInitError = proxyErr;
         }
     }
 
@@ -443,6 +491,7 @@ function getFallbackResponse(text, isError = false, error = null) {
  */
 export async function isGeminiAvailable() {
     if (getPersonalApiKey()) return true;
+    if (isSupabaseBackend) return true; // the ai-proxy Edge Function holds the key
     const fbAvailable = await initFirebaseAI();
     return Boolean(fbAvailable && appCheck);
 }

@@ -1,11 +1,9 @@
 import { collection, getDocs } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { callFunction } from '../lib/functions';
 import { getSupabase } from '../lib/supabase';
 import { isSupabaseBackend } from '../lib/backend';
 import type { TeamMember, UserRole } from '../types';
-
-const NOT_READY = 'إدارة فريق المنصة غير متاحة بعد على Supabase (يحتاج Edge Function: platform-admin).';
 
 export const getTeamMembers = async (): Promise<TeamMember[]> => {
   if (isSupabaseBackend) {
@@ -21,25 +19,16 @@ export const getTeamMembers = async (): Promise<TeamMember[]> => {
 };
 
 export const addTeamMember = async (email: string, name: string, role: UserRole) => {
-  if (isSupabaseBackend) throw new Error(NOT_READY);
-  const provision = httpsCallable<
-    { email: string; name: string; role: UserRole },
-    { passwordResetLink: string }
-  >(functions, 'provisionPlatformStaff');
-  const result = await provision({ email, name, role });
-  return result.data.passwordResetLink;
+  const result = await callFunction<{ email: string; name: string; role: UserRole }, { passwordResetLink: string }>('provisionPlatformStaff', { email, name, role });
+  return result.passwordResetLink;
 };
 
 export const updateTeamMemberRole = async (memberId: string, role: UserRole) => {
-  if (isSupabaseBackend) throw new Error(NOT_READY);
-  const update = httpsCallable<{ userId: string; role: UserRole }, void>(functions, 'updatePlatformStaff');
-  await update({ userId: memberId, role });
+  await callFunction('updatePlatformStaff', { userId: memberId, role });
 };
 
 export const deleteTeamMember = async (memberId: string) => {
-  if (isSupabaseBackend) throw new Error(NOT_READY);
   // Staff identities are retained for auditability; this disables the account
   // instead of deleting a document that could be needed in an investigation.
-  const suspend = httpsCallable<{ userId: string }, void>(functions, 'suspendPlatformStaff');
-  await suspend({ userId: memberId });
+  await callFunction('suspendPlatformStaff', { userId: memberId });
 };

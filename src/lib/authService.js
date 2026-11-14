@@ -1,6 +1,6 @@
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { httpsCallable } from 'firebase/functions';
-import { auth, functions } from '@/api/firebase';
+import { auth } from '@/api/firebase';
+import { callFunction } from '@/api/functions';
 import { supabase } from '@/api/supabase';
 import { isSupabaseBackend } from '@/api/backend';
 
@@ -54,10 +54,18 @@ export async function signInWithPassword(email, password) {
     }
 }
 
-/** Server-side audit trail of login/logout. Supabase side is covered by activity_logs (phase 4). */
+/** Server-side audit trail of login/logout (Firebase callable or the manage-users Edge Function). */
 export async function recordAuthenticationEvent(action) {
-    if (isSupabaseBackend) return;
-    await httpsCallable(functions, 'recordAuthenticationEvent')({ action });
+    if (isSupabaseBackend) {
+        // The audit trail must never block signing in/out (e.g. function not deployed or offline).
+        try {
+            await callFunction('recordAuthenticationEvent', { action });
+        } catch (err) {
+            console.warn('[auth] could not record authentication event:', err?.message || err);
+        }
+        return;
+    }
+    await callFunction('recordAuthenticationEvent', { action });
 }
 
 export async function signOutUser() {
