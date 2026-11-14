@@ -10,7 +10,7 @@
 | قاعدة البيانات (42 جدولاً + RLS + دوال RPC) | موجودة في المشروع |
 | جداول التذاكر + bucket المرفقات + RLS + triggers | **طُبّقت** (`supabase/migrations/20261114000000_support_tickets.sql`) |
 | Auth + طبقة البيانات + العمليات المالية + Realtime | مكتوبة خلف الـ flag |
-| Edge Functions (5) | **مكتوبة وغير منشورة** — تحتاج النشر (قسم 2) |
+| Edge Functions | منشورة أصلاً في المشروع (4 دوال) والتطبيقان مربوطان بعقودها |
 | سكربت نقل البيانات | **مكتوب وغير مُشغَّل** — يحتاج مفاتيح Firebase (قسم 4) |
 | اختبار بمستخدم حقيقي | **لم يُجرَ** |
 
@@ -23,31 +23,15 @@ npx supabase login
 npx supabase link --project-ref lejtflygvbakfbiwwhea
 ```
 
-## 2. نشر الـ Edge Functions
+## 2. الـ Edge Functions
 
-الأسرار (لا تُكتب في الكود ولا في `VITE_`):
+المشروع فيه 4 دوال **منشورة أصلاً** (`company-invitations` و`erp-integrations` و`platform-admin` و`owner-bootstrap`). التطبيقان يستدعيانها عبر `callFunction()` وفق عقودها الفعلية. التفاصيل وطريقة تنزيل الكود في `supabase/functions/README.md`.
 
-```bash
-npx supabase secrets set APP_BASE_URL=https://<دومين-التطبيق>
-npx supabase secrets set RESEND_API_KEY=<مفتاح Resend> MAIL_FROM="Nexora <no-reply@دومينك>"
-npx supabase secrets set ULTRAMSG_INSTANCE_ID=<id> ULTRAMSG_TOKEN=<token>
-npx supabase secrets set GEMINI_API_KEY=<مفتاح Gemini>
-```
-
-النشر (`invitations` عامة جزئيًا بسبب `verify`/`accept` — الإعداد في `supabase/config.toml`):
-
-```bash
-npx supabase functions deploy manage-users
-npx supabase functions deploy invitations
-npx supabase functions deploy platform-admin
-npx supabase functions deploy whatsapp
-npx supabase functions deploy ai-proxy
-```
-
-ملاحظات:
-- `SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` تُحقن تلقائيًا في الدوال.
-- بدون `RESEND_API_KEY` تبقى الدعوة صالحة ويُرجع `invitations` الرابط (`accept_url`) ليرسله المدير يدويًا.
-- الدعوات بالبريد تستخدم Resend (HTTPS) بدل SMTP لأن الـ Edge Functions لا تعتمد على SMTP.
+- لا تنشر دالة بنفس هذه الأسماء إلا إن أردت استبدال الدالة العاملة.
+- الأسرار (`GEMINI_API_KEY` و`GEMINI_MODEL` و`ULTRAMSG_*` و`ERP_APP_URL` و`CRM_APP_URL`) تُضبط من لوحة Supabase > Edge Functions > Secrets.
+- الدعوات: `company-invitations` يرجع رمزًا لمرة واحدة (`delivery: manual`) ويبني التطبيق رابط القبول؛ دعوات المالك وفريق المنصة تُرسل بالبريد عبر SMTP المضبوط في Supabase.
+- غير مدعوم على Supabase حاليًا: إضافة مستخدم بكلمة مرور مباشرة وحذف مستخدم (استخدم الدعوة وإيقاف الحساب).
+- الذكاء الاصطناعي عبر `erp-integrations` يرسل الرسالة الأخيرة فقط (بدون سجل المحادثة).
 
 ## 3. التشغيل المحلي للتجربة
 

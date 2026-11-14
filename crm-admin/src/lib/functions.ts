@@ -8,6 +8,11 @@ import { isSupabaseBackend } from './backend';
  * Firebase: httpsCallable(name). Supabase: the `platform-admin` Edge Function action.
  * Throws an Error whose message is the server's user-facing text and `.code` is its code.
  */
+// The deployed `platform-admin` function requires the list of enabled modules when creating a company
+// (default = every module, same as the column default) and invites people by e-mail instead of
+// returning a password-reset link.
+const ALL_MODULES = ['sales', 'inventory', 'purchases', 'customers', 'suppliers', 'debts', 'finance', 'hr', 'reports', 'operations', 'manufacturing', 'automation', 'ai'];
+
 const SUPABASE_ROUTES: Record<string, [string, string]> = {
   provisionCompany: ['platform-admin', 'provision_company'],
   provisionPlatformStaff: ['platform-admin', 'provision_staff'],
@@ -19,7 +24,9 @@ export async function callFunction<TIn extends object, TOut>(name: string, data:
   if (isSupabaseBackend) {
     const route = SUPABASE_ROUTES[name];
     if (!route) throw new Error(`No Supabase Edge Function mapped for "${name}".`);
-    const { data: result, error } = await getSupabase().functions.invoke(route[0], { body: { action: route[1], ...data } });
+    const body: Record<string, unknown> = { action: route[1], ...data };
+    if (name === 'provisionCompany' && !body.enabledModules) body.enabledModules = ALL_MODULES;
+    const { data: result, error } = await getSupabase().functions.invoke(route[0], { body });
     if (error) {
       let payload: { error?: string; code?: string } | null = null;
       try {

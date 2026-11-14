@@ -19,8 +19,8 @@ export const getTeamMembers = async (): Promise<TeamMember[]> => {
 };
 
 export const addTeamMember = async (email: string, name: string, role: UserRole) => {
-  const result = await callFunction<{ email: string; name: string; role: UserRole }, { passwordResetLink: string }>('provisionPlatformStaff', { email, name, role });
-  return result.passwordResetLink;
+  const result = await callFunction<{ email: string; name: string; role: UserRole }, { passwordResetLink?: string }>('provisionPlatformStaff', { email, name, role });
+  return result.passwordResetLink || ''; // empty when the account was invited by e-mail
 };
 
 export const updateTeamMemberRole = async (memberId: string, role: UserRole) => {

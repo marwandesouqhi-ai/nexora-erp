@@ -7,14 +7,9 @@ import type { AuditLog } from '../types';
 export const logAction = async (action: string, userEmail: string, target?: string, details?: string) => {
   try {
     if (isSupabaseBackend) {
-      const sb = getSupabase();
-      const { data: sess } = await sb.auth.getSession();
-      // platform_audit_logs has no email/details columns: keep them in metadata.
-      const { error } = await sb.from('platform_audit_logs').insert({
-        actor_id: sess.session?.user.id ?? null,
-        action,
-        target: target ?? null,
-        metadata: { userEmail, details: details ?? null },
+      // Written server-side by platform-admin (it records the actor and e-mail itself).
+      const { error } = await getSupabase().functions.invoke('platform-admin', {
+        body: { action: 'log_action', event: action, target: target ?? '', details: details ?? '' },
       });
       if (error) throw error;
       return;
@@ -46,7 +41,7 @@ export const getAuditLogs = async (maxLogs: number = 50): Promise<AuditLog[]> =>
       return (data || []).map((row: any) => ({
         id: String(row.id),
         action: row.action,
-        userEmail: row.metadata?.userEmail ?? '',
+        userEmail: row.metadata?.actor_email ?? row.metadata?.userEmail ?? '',
         target: row.target ?? undefined,
         details: row.metadata?.details ?? undefined,
         timestamp: row.created_at,

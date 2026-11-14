@@ -87,7 +87,7 @@ export const createCompany = async (data: {
   adminWhatsapp?: string;
   plan?: 'basic' | 'pro' | 'enterprise';
 }) => {
-  return callFunction<typeof data, { companyId: string; ownerUid: string; passwordResetLink: string }>('provisionCompany', data);
+  return callFunction<typeof data, { companyId: string; ownerUid: string; passwordResetLink?: string; delivery?: string }>('provisionCompany', data);
 };
 
 export const deleteCompany = async (companyId: string) => {

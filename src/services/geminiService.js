@@ -152,7 +152,7 @@ export function getGeminiProviderInfo() {
     if (isSupabaseBackend) {
         return {
             provider: 'proxy',
-            label: 'خادم Nexora الآمن (Supabase Edge Function)',
+            label: 'خادم Nexora الآمن (erp-integrations)',
             model: GEMINI_MODEL,
         };
     }
@@ -348,22 +348,18 @@ async function streamPersonalGeminiResponse({
 // الذكاء الاصطناعي عبر Edge Function (ai-proxy) — المفتاح يبقى على الخادم
 // ====================================================
 
-async function askAiProxy({ userMessage, systemPrompt, history = [] }) {
-    const contents = [...toGeminiHistory(history), { role: 'user', parts: [{ text: userMessage }] }];
-    const { data, error } = await getSupabase().functions.invoke('ai-proxy', {
-        body: {
-            model: getActiveModel(),
-            contents,
-            ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
-        },
+// The deployed `erp-integrations` function (action 'assistant') holds the Gemini key and model on the
+// server. It accepts a single message plus the system prompt, so earlier turns are not sent.
+async function askAiProxy({ userMessage, systemPrompt }) {
+    const { data, error } = await getSupabase().functions.invoke('erp-integrations', {
+        body: { action: 'assistant', userMessage, systemPrompt: systemPrompt || '' },
     });
     if (error) {
         let detail = '';
         try { detail = (await error.context?.json?.())?.error || ''; } catch { /* not JSON */ }
         throw new Error(detail || error.message || 'ai-proxy request failed');
     }
-    const text = (data?.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('');
-    return text || 'لم أتلقَّ ردًا.';
+    return data?.text || 'لم أتلقَّ ردًا.';
 }
 
 // ====================================================
@@ -402,7 +398,7 @@ export async function streamAssistantResponse({
     // 2a. Supabase: عبر Edge Function على الخادم (بدون Firebase/App Check)
     if (isSupabaseBackend) {
         try {
-            const text = await askAiProxy({ userMessage, systemPrompt, history });
+            const text = await askAiProxy({ userMessage, systemPrompt });
             if (onChunk) onChunk(text);
             return text;
         } catch (proxyErr) {

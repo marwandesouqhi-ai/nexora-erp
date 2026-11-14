@@ -5,37 +5,47 @@ import { isSupabaseBackend } from '@/api/backend';
 
 /**
  * Backend-neutral server-function client.
- *   callFunction('createManagedUser', payload)
- * runs the Firebase callable of that name, or on Supabase the matching Edge Function
- * (supabase/functions/*). Returns the function's data directly and throws an Error with
- * `.code` (e.g. 'already-exists', 'permission-denied') and a user-facing `.message`.
+ *   callFunction('createInvitation', payload)
+ * runs the Firebase callable of that name, or on Supabase the Edge Function already deployed
+ * in the nexora-erp project:
+ *   company-invitations  invitations + managing existing users
+ *   erp-integrations     WhatsApp gateway + Gemini assistant
+ * Returns the function's data and throws an Error with `.code` and a user-facing `.message`.
  */
 
-// Firebase callable name -> [edge function, action]
+const unsupported = (message) => () => {
+    const err = new Error(message);
+    err.code = 'unimplemented';
+    throw err;
+};
+
+const acceptUrl = (token) => `${window.location.origin}/accept-invitation?token=${encodeURIComponent(token)}`;
+// company-invitations returns the one-time token (delivery: 'manual'); hand the UI a ready link.
+const withAcceptUrl = (result) => (result?.token ? { ...result, accept_url: acceptUrl(result.token) } : result);
+
+// Firebase callable name -> { fn, action, request?, response? } | { unsupported }
 const SUPABASE_ROUTES = {
-    createManagedUser: ['manage-users', 'create'],
-    updateManagedUser: ['manage-users', 'update'],
-    updateManagedUserSecure: ['manage-users', 'update_secure'],
-    deleteManagedUser: ['manage-users', 'delete'],
-    createInvitation: ['invitations', 'create'],
-    resendInvitation: ['invitations', 'resend'],
-    revokeInvitation: ['invitations', 'revoke'],
-    listManagedInvitations: ['invitations', 'list'],
-    verifyInvitation: ['invitations', 'verify'],
-    acceptInvitation: ['invitations', 'accept'],
-    provisionCompany: ['platform-admin', 'provision_company'],
-    provisionPlatformStaff: ['platform-admin', 'provision_staff'],
-    updatePlatformStaff: ['platform-admin', 'update_staff'],
-    suspendPlatformStaff: ['platform-admin', 'suspend_staff'],
-    sendWhatsappMessage: ['whatsapp', 'send'],
-    checkWhatsappConnection: ['whatsapp', 'check'],
+    createInvitation: { fn: 'company-invitations', action: 'create', response: withAcceptUrl },
+    resendInvitation: { fn: 'company-invitations', action: 'resend', response: withAcceptUrl },
+    revokeInvitation: { fn: 'company-invitations', action: 'revoke' },
+    listManagedInvitations: { fn: 'company-invitations', action: 'list' },
+    verifyInvitation: { fn: 'company-invitations', action: 'verify' },
+    acceptInvitation: { fn: 'company-invitations', action: 'accept' },
+    // Editing an existing member (name / role / status / permissions) — email and password are not editable here.
+    updateManagedUser: { fn: 'company-invitations', action: 'update_user' },
+    updateManagedUserSecure: { fn: 'company-invitations', action: 'update_user' },
+    // The deployed server deliberately has no direct "create user with a password" or "delete user".
+    createManagedUser: { unsupported: 'إضافة مستخدم بكلمة مرور مباشرة غير مدعومة على Supabase. أرسل دعوة للمستخدم بدلاً من ذلك.' },
+    deleteManagedUser: { unsupported: 'حذف المستخدم غير مدعوم على Supabase. أوقف الحساب (suspended) بدلاً من حذفه.' },
+    sendWhatsappMessage: { fn: 'erp-integrations', action: 'whatsapp_send' },
+    checkWhatsappConnection: { fn: 'erp-integrations', action: 'whatsapp_status' },
 };
 
 async function invokeEdge(fn, action, data) {
     const { data: result, error } = await getSupabase().functions.invoke(fn, { body: { action, ...data } });
     if (!error) return result;
 
-    // FunctionsHttpError carries the Response; our functions answer { error, code }.
+    // FunctionsHttpError carries the Response; the deployed functions answer { error }.
     let payload = null;
     try {
         payload = await error.context?.json?.();
@@ -50,12 +60,13 @@ async function invokeEdge(fn, action, data) {
 
 export async function callFunction(name, data = {}) {
     if (isSupabaseBackend) {
-        if (name === 'recordAuthenticationEvent') {
-            return invokeEdge('manage-users', 'record_event', { action_name: data.action });
-        }
+        // The deployed project has no login/logout audit function; sign-in must never depend on it.
+        if (name === 'recordAuthenticationEvent') return { success: true };
         const route = SUPABASE_ROUTES[name];
         if (!route) throw new Error(`No Supabase Edge Function mapped for "${name}".`);
-        return invokeEdge(route[0], route[1], data);
+        if (route.unsupported) return unsupported(route.unsupported)();
+        const result = await invokeEdge(route.fn, route.action, data);
+        return route.response ? route.response(result) : result;
     }
     const result = await httpsCallable(functions, name)(data);
     return result.data;

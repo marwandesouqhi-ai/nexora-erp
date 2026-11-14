@@ -45,7 +45,11 @@ export function Team() {
     setAdding(true);
     try {
       const passwordResetLink = await addTeamMember(newEmail, newName, newRole);
-      window.prompt('تم إنشاء حساب موظف الدعم. انسخ رابط تعيين كلمة المرور وأرسله إليه عبر قناة آمنة:', passwordResetLink);
+      if (passwordResetLink) {
+        window.prompt('تم إنشاء حساب موظف الدعم. انسخ رابط تعيين كلمة المرور وأرسله إليه عبر قناة آمنة:', passwordResetLink);
+      } else {
+        window.alert('تم إنشاء حساب موظف الدعم وإرسال دعوة إلى بريده.');
+      }
       setShowAddModal(false);
       setNewEmail('');
       setNewName('');

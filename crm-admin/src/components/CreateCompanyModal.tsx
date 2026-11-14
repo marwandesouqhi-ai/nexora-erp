@@ -37,7 +37,11 @@ export function CreateCompanyModal({ isOpen, onClose, onCompanyCreated }: Props)
         ownerEmail,
         adminWhatsapp: normalizeWaNumber(adminWhatsapp),
       });
-      window.prompt('تم إنشاء الشركة وحساب مالك الـERP. انسخ رابط تعيين كلمة المرور وأرسله للمالك عبر قناة آمنة:', result.passwordResetLink);
+      if (result.passwordResetLink) {
+        window.prompt('تم إنشاء الشركة وحساب مالك الـERP. انسخ رابط تعيين كلمة المرور وأرسله للمالك عبر قناة آمنة:', result.passwordResetLink);
+      } else {
+        window.alert('تم إنشاء الشركة وإرسال دعوة تعيين كلمة المرور إلى بريد المالك.');
+      }
       onCompanyCreated();
       onClose();
       setName('');
