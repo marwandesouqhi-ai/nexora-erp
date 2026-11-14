@@ -8,9 +8,11 @@ import {
     serverTimestamp,
     increment,
     runTransaction
-} from "firebase/firestore";
+} from "@/data/firestoreCompat";
 import { sendRepNotification } from "./notifications";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
 
 const FIELD_EXPENSES_COLLECTION = "field_expenses";
 
@@ -75,6 +77,13 @@ export const subscribeFieldExpenses = (onData, onError) => {
  */
 export const approveFieldExpense = async (expenseId, { accountId, approvedBy = "الإدارة المالية", notes = "" }) => {
     try {
+        if (isSupabaseBackend) {
+            await callRpc('field_cash', {
+                operation: 'approve_expense',
+                payload: { expenseId, accountId: accountId || null, approvedBy, notes },
+            });
+            return { success: true };
+        }
         const result = await runTransaction(db, async (transaction) => {
             const expenseRef = doc(db, FIELD_EXPENSES_COLLECTION, expenseId);
             const expenseSnap = await transaction.get(expenseRef);
@@ -163,6 +172,14 @@ export const rejectFieldExpense = async (expenseId, { rejectionReason, rejectedB
     try {
         if (!rejectionReason || !rejectionReason.trim()) {
             throw new Error("يجب توضيح سبب الرفض للمندوب.");
+        }
+
+        if (isSupabaseBackend) {
+            await callRpc('field_cash', {
+                operation: 'reject_expense',
+                payload: { expenseId, rejection_reason: rejectionReason.trim(), rejected_by: rejectedBy },
+            });
+            return { success: true };
         }
 
         const expenseRef = doc(db, FIELD_EXPENSES_COLLECTION, expenseId);

@@ -40,6 +40,11 @@ export const withTenant = (data = {}) => {
  */
 export const createTenantQuery = (collectionName, ...additionalConstraints) => {
     const activeCompanyId = getActiveCompanyId();
+    if (isSupabaseBackend) {
+        // Constraints come from the firestoreCompat helpers (where/orderBy descriptors).
+        // The company filter is applied by fetchRows and enforced by RLS.
+        return { __sb: 'query', name: collectionName, constraints: additionalConstraints };
+    }
     const colRef = collection(db, collectionName);
     if (!activeCompanyId) {
         // حماية أمنية: إذا لم يتوفر رقم شركة نشطة، يتم إرجاع استعلام فارغ يمنع تسريب البيانات

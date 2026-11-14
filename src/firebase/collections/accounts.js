@@ -1,5 +1,5 @@
 import { db } from "../firebaseConfig";
-import { collection, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from "@/data/firestoreCompat";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
 
 // دالة إضافة حساب/خزينة جديدة

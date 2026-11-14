@@ -8,7 +8,7 @@ import {
     where,
     onSnapshot,
     serverTimestamp
-} from "firebase/firestore";
+} from "@/data/firestoreCompat";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
 
 // تسجيل حضور موظف (Check-in)

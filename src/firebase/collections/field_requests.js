@@ -6,7 +6,7 @@ import {
     addDoc,
     serverTimestamp,
     onSnapshot
-} from "firebase/firestore";
+} from "@/data/firestoreCompat";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
 
 const FIELD_REQUESTS_COLLECTION = "field_requests";

@@ -1,8 +1,12 @@
 import { db } from "../firebaseConfig";
 import { collection, addDoc, doc, updateDoc, increment, serverTimestamp, deleteDoc, runTransaction, writeBatch } from "firebase/firestore";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
+import { insertRow, updateRow, deleteRow } from "@/data/supabaseTenantDb";
 
 export const syncInvoiceDebts = async (companyId = null) => {
+    if (isSupabaseBackend) return; // debts are created by process_sale / process_purchase
     const [salesDocs, purchasesDocs, debtsDocs] = await Promise.all([
         fetchTenantDocs('sales', { companyId }),
         fetchTenantDocs('purchases', { companyId }),
@@ -64,6 +68,21 @@ export const addNewDebt = async (debtData) => {
         const amount = Number(debtData.amount) || 0;
         const paidAmount = Number(debtData.paid_amount) || 0;
         const remainingAmount = Math.max(0, amount - paidAmount);
+        if (isSupabaseBackend) {
+            const { id } = await insertRow('debts', {
+                party_name: debtData.party_name || '',
+                party_type: debtData.party_type || 'customer',
+                amount,
+                paid_amount: paidAmount,
+                remaining_amount: remainingAmount,
+                direction: debtData.direction || 'owed_to_us',
+                due_date: debtData.due_date || null,
+                status: debtData.status || (remainingAmount > 0 ? 'pending' : 'settled'),
+                description: debtData.description || '',
+                notes: debtData.notes || '',
+            });
+            return { success: true, id };
+        }
         const payload = withTenant({
             party_name: debtData.party_name || "",
             party_type: debtData.party_type || "customer",
@@ -87,6 +106,9 @@ export const addNewDebt = async (debtData) => {
 
 export const recordDebtTransaction = async (debtData) => {
     try {
+        if (isSupabaseBackend) {
+            throw new Error('recordDebtTransaction غير مدعومة على Supabase. استخدم settleDebt(debtId, amount).');
+        }
         const debtRef = await addDoc(collection(db, "debts"), withTenant({
             party_id: debtData.partyId,
             party_name: debtData.partyName,
@@ -131,10 +153,21 @@ export const getDebts = async (companyId = null) => {
 
 export const updateDebt = async (id, updatedData) => {
     try {
-        const docRef = doc(db, "debts", id);
         const amount = Number(updatedData.amount) || 0;
         const paidAmount = Number(updatedData.paid_amount) || 0;
         const remainingAmount = Math.max(0, amount - paidAmount);
+        if (isSupabaseBackend) {
+            await updateRow('debts', id, {
+                ...updatedData,
+                due_date: updatedData.due_date || null,
+                amount,
+                paid_amount: paidAmount,
+                remaining_amount: remainingAmount,
+                status: updatedData.status || (remainingAmount > 0 ? 'pending' : 'settled'),
+            });
+            return { success: true };
+        }
+        const docRef = doc(db, "debts", id);
         await updateDoc(docRef, {
             ...updatedData,
             amount,
@@ -152,6 +185,10 @@ export const updateDebt = async (id, updatedData) => {
 
 export const settleDebt = async (id, amount) => {
     try {
+        if (isSupabaseBackend) {
+            const result = await callRpc('settle_debt', { debt_id: id, payment: Number(amount) || 0 });
+            return { success: true, remainingAmount: Number(result.remainingAmount), status: result.status };
+        }
         const docRef = doc(db, "debts", id);
         const paymentAmount = Number(amount) || 0;
         let result;
@@ -204,6 +241,10 @@ export const settleDebt = async (id, amount) => {
 
 export const deleteDebtDoc = async (id) => {
     try {
+        if (isSupabaseBackend) {
+            await deleteRow('debts', id);
+            return { success: true };
+        }
         await deleteDoc(doc(db, "debts", id));
         return { success: true };
     } catch (error) {

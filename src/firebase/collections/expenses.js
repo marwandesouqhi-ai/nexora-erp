@@ -1,6 +1,8 @@
 import { db } from "../firebaseConfig";
 import { collection, doc, increment, serverTimestamp, runTransaction } from "firebase/firestore";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
 
 const isToday = (value) => {
     const date = value?.toDate?.() || (value ? new Date(value) : new Date());
@@ -18,6 +20,22 @@ export const addNewExpense = async (expenseData) => {
     const accountId = expenseData.account_id || "";
 
     try {
+        if (isSupabaseBackend) {
+            const result = await callRpc('expense_operation', {
+                operation: 'create',
+                expense_id: null,
+                payload: {
+                    amount,
+                    category,
+                    description,
+                    account_id: accountId || null,
+                    expense_date: expenseData.expense_date instanceof Date
+                        ? expenseData.expense_date.toISOString().slice(0, 10)
+                        : (expenseData.expense_date || undefined),
+                },
+            });
+            return { success: true, id: result.id };
+        }
         const id = await runTransaction(db, async (transaction) => {
             const expenseRef = doc(collection(db, "expenses"));
             const statsRef = doc(db, "dashboard_stats", "today_summary");
@@ -102,6 +120,14 @@ export const updateExpense = async (id, updatedData) => {
     const accountId = updatedData.account_id || "";
 
     try {
+        if (isSupabaseBackend) {
+            await callRpc('expense_operation', {
+                operation: 'update',
+                expense_id: id,
+                payload: { amount, category, description, account_id: accountId || null },
+            });
+            return { success: true };
+        }
         await runTransaction(db, async (transaction) => {
             const expenseRef = doc(db, "expenses", id);
             const statsRef = doc(db, "dashboard_stats", "today_summary");
@@ -165,6 +191,14 @@ export const updateExpense = async (id, updatedData) => {
 
 export const deleteExpenseDoc = async (id) => {
     try {
+        if (isSupabaseBackend) {
+            await callRpc('expense_operation', {
+                operation: 'delete',
+                expense_id: id,
+                payload: {},
+            });
+            return { success: true };
+        }
         await runTransaction(db, async (transaction) => {
             const expenseRef = doc(db, "expenses", id);
             const statsRef = doc(db, "dashboard_stats", "today_summary");

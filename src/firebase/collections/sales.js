@@ -3,6 +3,9 @@ import { collection, getDocs, getDoc, doc, where, increment, runTransaction, ser
 import { db } from '../firebaseConfig';
 import { deductFromVanInventory } from './van_inventory';
 import { fetchTenantDocs, withTenant, createTenantQuery } from '@/lib/tenantFirestore';
+import { isSupabaseBackend } from '@/api/backend';
+import { callRpc } from '@/data/supabaseRpc';
+import { fetchRowById } from '@/data/supabaseTenantDb';
 
 const SALES_COLLECTION = 'sales';
 const PRODUCTS_COLLECTION = 'products';
@@ -311,6 +314,31 @@ export const createSalesInvoice = async (
                 saleData.customerName ??
                 'عميل نقدي'
             ).trim() || 'عميل نقدي';
+
+        if (isSupabaseBackend) {
+            const result = await callRpc('process_sale', {
+                sale_payload: {
+                    invoice_number: invoiceNumber,
+                    customer_id: saleData.customer_id ?? saleData.customerId ?? null,
+                    customer_name: customerName,
+                    items,
+                    total_amount: total,
+                    paid_amount: paidAmount,
+                    payment_type: saleData.payment_type ?? saleData.paymentType ?? 'cash',
+                    account_id: saleData.account_id ?? saleData.accountId ?? null,
+                    notes: saleData.notes ?? '',
+                },
+            });
+            return {
+                success: true,
+                id: result.sale_id,
+                invoice_number: result.invoice_number,
+                total: Number(result.total_amount),
+                paid_amount: Number(result.paid_amount),
+                remaining_amount: Number(result.remaining_amount),
+                payment_status: paymentStatus,
+            };
+        }
 
         const saleRef = doc(
             collection(
@@ -673,6 +701,11 @@ export const getSaleById = async (
             return null;
         }
 
+        if (isSupabaseBackend) {
+            const row = await fetchRowById(SALES_COLLECTION, id);
+            return row ? normalizeSale(row, row.id) : null;
+        }
+
         const saleRef =
             doc(
                 db,
@@ -713,6 +746,12 @@ export const deleteSale = async (
             throw new Error(
                 'Sale ID is required.'
             );
+        }
+
+        if (isSupabaseBackend) {
+            // Reverses stock, customer balance, debt and cashbox in one DB transaction.
+            await callRpc('void_invoice', { kind: 'sale', invoice_id: id });
+            return { success: true };
         }
 
         const saleRef = doc(db, SALES_COLLECTION, id);
@@ -804,47 +843,4 @@ export const deleteSale = async (
 
         throw error;
     }
-};
-
-/* =========================================================
-   DATE HELPER
-========================================================= */
-
-const getTimestampDate = (
-    value
-) => {
-    if (!value) {
-        return 0;
-    }
-
-    if (
-        typeof value?.toDate ===
-        'function'
-    ) {
-        const date =
-            value.toDate();
-
-        return Number.isNaN(
-            date.getTime()
-        )
-            ? 0
-            : date.getTime();
-    }
-
-    if (value instanceof Date) {
-        return Number.isNaN(
-            value.getTime()
-        )
-            ? 0
-            : value.getTime();
-    }
-
-    const date =
-        new Date(value);
-
-    return Number.isNaN(
-        date.getTime()
-    )
-        ? 0
-        : date.getTime();
 };

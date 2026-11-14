@@ -1,10 +1,34 @@
 import { db } from "../firebaseConfig";
 import { collection, doc, increment, serverTimestamp, writeBatch, runTransaction } from "firebase/firestore";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
 
 // ✅ دالة إنشاء معاملة شراء كاملة (Transaction Pattern)
 export const createPurchaseTransaction = async (purchaseData) => {
     try {
+        if (isSupabaseBackend) {
+            // process_purchase: stock, supplier balance, debt, cashbox and cashflow in one DB transaction.
+            for (const item of purchaseData.items || []) {
+                if (!item.product_id || !(Number(item.quantity) > 0)) {
+                    throw new Error('كل صنف في فاتورة الشراء يجب أن يحتوي على كمية صحيحة.');
+                }
+            }
+            const result = await callRpc('process_purchase', {
+                payload: {
+                    supplier_id: purchaseData.supplier_id || null,
+                    supplier_name: purchaseData.supplier_name || '',
+                    invoice_number: purchaseData.invoice_number || undefined,
+                    items: purchaseData.items || [],
+                    total: Number(purchaseData.total) || 0,
+                    paid_amount: Number(purchaseData.paid_amount) || 0,
+                    account_id: purchaseData.account_id || null,
+                    payment_method: purchaseData.payment_method || 'cash',
+                    notes: purchaseData.notes || '',
+                },
+            });
+            return { success: true, id: result.id };
+        }
         const batch = writeBatch(db);
 
         // 1. تسجيل الفاتورة في كوليكشن المشتريات
@@ -117,6 +141,10 @@ export const createPurchaseTransaction = async (purchaseData) => {
 // ✅ دالة حذف معاملة شراء كاملة (مع تعديل المخزن والمورد)
 export const deletePurchaseTransaction = async (purchaseId) => {
     try {
+        if (isSupabaseBackend) {
+            await callRpc('void_invoice', { kind: 'purchase', invoice_id: purchaseId });
+            return;
+        }
         await runTransaction(db, async (transaction) => {
             const purchaseRef = doc(db, "purchases", purchaseId);
             const purchaseSnap = await transaction.get(purchaseRef);

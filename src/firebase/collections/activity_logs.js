@@ -1,5 +1,5 @@
 import { db } from "../firebaseConfig";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "@/data/firestoreCompat";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
 
 // 1. دالة تسجيل نشاط جديد (تُستدعى من داخل كل العمليات التانية)

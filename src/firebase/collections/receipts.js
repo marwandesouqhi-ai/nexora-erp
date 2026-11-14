@@ -1,7 +1,9 @@
 import { db } from "../firebaseConfig";
-import { collection, doc, onSnapshot, serverTimestamp, increment, runTransaction } from "firebase/firestore";
+import { collection, doc, onSnapshot, serverTimestamp, increment, runTransaction } from "@/data/firestoreCompat";
 import { sendRepNotification } from "./notifications";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
 
 const RECEIPTS_COLLECTION = "receipts";
 
@@ -71,6 +73,23 @@ export const recordFieldReceipt = async (receiptData) => {
         const repId = receiptData.employeeId || receiptData.employee_id;
         const repName = receiptData.employeeName || receiptData.employee_name || "مندوب";
 
+        if (isSupabaseBackend) {
+            // field_cash/record_receipt: validates the balance, allocates the amount to the oldest debts.
+            const result = await callRpc('field_cash', {
+                operation: 'record_receipt',
+                payload: {
+                    customerId,
+                    customerName: receiptData.customerName || receiptData.customer_name || '',
+                    employeeId: repId || '',
+                    employeeName: repName,
+                    amount,
+                    paymentMethod: receiptData.paymentMethod || receiptData.payment_method || 'cash',
+                    notes: receiptData.notes || '',
+                },
+            });
+            return { success: true, id: result.id };
+        }
+
         const result = await runTransaction(db, async (transaction) => {
             const receiptRef = doc(collection(db, RECEIPTS_COLLECTION));
 
@@ -135,6 +154,14 @@ export const settleRepCustodyToSafe = async ({
         const amount = Number(totalAmount) || 0;
         if (amount <= 0) throw new Error("مبلغ التصفية يجب أن يكون أكبر من صفر.");
         if (!accountId) throw new Error("يجب اختيار خزينة أو حساب بنكي لإيداع المبالغ.");
+
+        if (isSupabaseBackend) {
+            await callRpc('field_cash', {
+                operation: 'settle_receipts',
+                payload: { accountId, receiptIds, repId },
+            });
+            return { success: true };
+        }
 
         await runTransaction(db, async (transaction) => {
             const accountRef = doc(db, "accounts", accountId);

@@ -6,7 +6,7 @@ import {
     updateDoc,
     doc,
     deleteDoc,
-} from "firebase/firestore";
+} from "@/data/firestoreCompat";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
 
 const customersCollection = collection(db, "customers");

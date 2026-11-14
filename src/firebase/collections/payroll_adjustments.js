@@ -8,8 +8,10 @@ import {
     onSnapshot,
     serverTimestamp,
     writeBatch
-} from "firebase/firestore";
+} from "@/data/firestoreCompat";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { updateRow } from "@/data/supabaseTenantDb";
 
 /**
  * إضافة بند تسوية مالية (حافز، جزاء إداري، خصم سلفة)
@@ -163,6 +165,11 @@ export const subscribeAdjustmentsByMonth = (monthStr, onData, onError) => {
 export const batchUpdateAdjustmentStatus = async (adjustmentIds = [], newStatus = 'applied') => {
     if (!adjustmentIds.length) return { success: true };
     try {
+        if (isSupabaseBackend) {
+            // Salary runs apply adjustments through payroll_operation; this only flips status.
+            await Promise.all(adjustmentIds.map((id) => updateRow('payroll_adjustments', id, { status: newStatus })));
+            return { success: true };
+        }
         const batch = writeBatch(db);
         adjustmentIds.forEach((id) => {
             const ref = doc(db, 'payroll_adjustments', id);

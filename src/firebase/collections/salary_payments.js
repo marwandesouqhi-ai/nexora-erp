@@ -1,9 +1,37 @@
 import { db } from '../firebaseConfig';
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { fetchTenantDocs, withTenant } from '@/lib/tenantFirestore';
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
+
+// payroll_operation payload (the server recomputes net_salary and validates everything).
+const toPayrollPayload = (data) => ({
+    employee_id: data.employee_id,
+    month_year: data.month_year,
+    base_salary: Number(data.base_salary) || 0,
+    commission_amount: Number(data.commission_amount) || 0,
+    allowances: Number(data.allowances) || 0,
+    bonus: Number(data.bonus) || 0,
+    deductions: Number(data.deductions) || 0,
+    tax_deducted: Number(data.tax_deducted) || 0,
+    payment_status: data.payment_status || data.status || 'paid',
+    payment_date: data.payment_date || undefined,
+    account_id: data.account_id || undefined,
+    adjustment_ids_to_apply: data.adjustment_ids_to_apply || [],
+    payment_method: data.payment_method || 'cash',
+    notes: data.notes || '',
+});
 
 export const addNewSalaryPayment = async (paymentData) => {
     try {
+        if (isSupabaseBackend) {
+            const result = await callRpc('payroll_operation', {
+                operation: 'create',
+                payment_id: null,
+                payload: toPayrollPayload(paymentData),
+            });
+            return { success: true, id: result.id };
+        }
         const baseSalary = Number(paymentData.base_salary) || 0;
         const commissionAmount = Number(paymentData.commission_amount) || 0;
         const allowances = Number(paymentData.allowances) || 0;
@@ -74,6 +102,14 @@ export const getSalaryPaymentsByEmployee = async (employeeId, companyId = null) 
 
 export const updateSalaryPayment = async (id, updatedData) => {
     try {
+        if (isSupabaseBackend) {
+            await callRpc('payroll_operation', {
+                operation: 'update',
+                payment_id: id,
+                payload: toPayrollPayload(updatedData),
+            });
+            return { success: true };
+        }
         const ref = doc(db, 'salary_payments', id);
         const baseSalary = Number(updatedData.base_salary) || 0;
         const commissionAmount = Number(updatedData.commission_amount) || 0;
@@ -103,6 +139,10 @@ export const updateSalaryPayment = async (id, updatedData) => {
 
 export const deleteSalaryPaymentDoc = async (id) => {
     try {
+        if (isSupabaseBackend) {
+            await callRpc('payroll_operation', { operation: 'delete', payment_id: id, payload: {} });
+            return { success: true };
+        }
         await deleteDoc(doc(db, 'salary_payments', id));
         return { success: true };
     } catch (error) {

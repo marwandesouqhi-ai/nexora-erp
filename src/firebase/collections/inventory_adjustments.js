@@ -1,6 +1,8 @@
 import { db } from "../firebaseConfig";
 import { collection, doc, increment, serverTimestamp, runTransaction } from "firebase/firestore";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
 
 // دالة تسجيل عملية هالك أو تسوية مخزنية
 export const recordInventoryAdjustment = async (adjustmentData) => {
@@ -8,6 +10,17 @@ export const recordInventoryAdjustment = async (adjustmentData) => {
         const quantity = Number(adjustmentData.qty);
         if (!adjustmentData.productId || !Number.isFinite(quantity) || quantity <= 0) {
             throw new Error('الصنف والكمية يجب أن يكونا صحيحين.');
+        }
+
+        if (isSupabaseBackend) {
+            const result = await callRpc('stock_adjustment', {
+                payload: {
+                    productId: adjustmentData.productId,
+                    qty: quantity,
+                    reason: adjustmentData.reason || 'تسوية مخزنية',
+                },
+            });
+            return { success: true, id: result.id };
         }
 
         const id = await runTransaction(db, async (transaction) => {

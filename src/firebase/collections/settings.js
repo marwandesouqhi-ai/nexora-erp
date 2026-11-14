@@ -1,6 +1,6 @@
 import { db } from "../firebaseConfig";
 import { storage } from "@/api/firebase";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "@/data/firestoreCompat";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getActiveCompanyId } from "@/lib/currentTenant";
 import { withTenant } from "@/lib/tenantFirestore";

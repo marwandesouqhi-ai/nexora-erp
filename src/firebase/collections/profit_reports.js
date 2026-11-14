@@ -1,5 +1,5 @@
 import { db } from "../firebaseConfig";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "@/data/firestoreCompat";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
 
 // حفظ لقطة (snapshot) لتقرير أرباح فترة معينة، عشان يبقى عندك أرشيف دوري

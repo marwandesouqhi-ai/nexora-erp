@@ -1,6 +1,28 @@
 import { db } from "../firebaseConfig";
-import { collection, doc, updateDoc, where, onSnapshot, serverTimestamp, increment, runTransaction } from "firebase/firestore";
+import { collection, doc, updateDoc, where, onSnapshot, serverTimestamp, increment, runTransaction } from "@/data/firestoreCompat";
 import { fetchTenantDocs, createTenantQuery, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
+import { getSupabase } from "@/api/supabase";
+import { getActiveCompanyId } from "@/lib/currentTenant";
+
+// Supabase keeps one row per rep with an `items` jsonb array; the UI expects one
+// entry per (employee, product) like the old Firestore documents.
+const flattenVans = (rows) => rows.flatMap((van) =>
+    (Array.isArray(van.items) ? van.items : []).map((item) => {
+        const productId = item.product_id || item.id;
+        return {
+            ...item,
+            id: `${van.rep_id}_${productId}`,
+            van_row_id: van.id,
+            employee_id: van.rep_id,
+            employee_name: van.rep_name,
+            product_id: productId,
+            quantity: Number(item.quantity) || 0,
+            unit_price: Number(item.unit_price) || 0,
+        };
+    })
+);
 
 /**
  * صرف بضاعة من المخزن المركزي إلى عهدة سيارة المندوب (Van Sales Stock)
@@ -19,6 +41,13 @@ export const disburseToVan = async ({
         const qty = Number(quantity);
         if (!employeeId || !productId || !Number.isFinite(qty) || qty <= 0) {
             throw new Error('بيانات الصرف غير مكتملة (المندوب، الصنف، والكمية مطلوبة).');
+        }
+
+        if (isSupabaseBackend) {
+            const result = await callRpc('disburse_van', {
+                payload: { employeeId, productId, quantity: qty, unitPrice: Number(unitPrice) || 0, notes },
+            });
+            return { success: true, vanDocId: result.vanDocId };
         }
 
         const vanDocId = `${employeeId}_${productId}`;
@@ -106,6 +135,10 @@ export const disburseToVan = async ({
  */
 export const getVanInventoryByEmployee = async (employeeId, companyId = null) => {
     try {
+        if (isSupabaseBackend) {
+            const rows = await fetchTenantDocs("van_inventory", { companyId });
+            return flattenVans(rows).filter((item) => item.employee_id === employeeId && item.quantity > 0);
+        }
         const docs = await fetchTenantDocs("van_inventory", {
             companyId,
             filterFn: (item) => item.employee_id === employeeId && Number(item.quantity) > 0,
@@ -122,6 +155,18 @@ export const getVanInventoryByEmployee = async (employeeId, companyId = null) =>
  */
 export const subscribeVanInventoryByEmployee = (employeeId, onData, onError) => {
     try {
+        if (isSupabaseBackend) {
+            const sb = getSupabase();
+            const refresh = () => getVanInventoryByEmployee(employeeId).then(onData).catch((err) => onError && onError(err));
+            const channel = sb
+                .channel(`van:${employeeId}`)
+                .on('postgres_changes',
+                    { event: '*', schema: 'public', table: 'van_inventory', filter: `company_id=eq.${getActiveCompanyId()}` },
+                    refresh)
+                .subscribe();
+            refresh();
+            return () => { sb.removeChannel(channel); };
+        }
         const q = createTenantQuery(
             "van_inventory",
             where("employee_id", "==", employeeId)
@@ -151,6 +196,10 @@ export const subscribeVanInventoryByEmployee = (employeeId, onData, onError) => 
  */
 export const getAllVanInventories = async (companyId = null) => {
     try {
+        if (isSupabaseBackend) {
+            const rows = await fetchTenantDocs("van_inventory", { companyId });
+            return flattenVans(rows).filter((item) => item.quantity > 0);
+        }
         const docs = await fetchTenantDocs("van_inventory", {
             companyId,
             filterFn: (item) => Number(item.quantity) > 0,
@@ -167,6 +216,29 @@ export const getAllVanInventories = async (companyId = null) => {
  */
 export const deductFromVanInventory = async (employeeId, productId, soldQty) => {
     try {
+        if (isSupabaseBackend) {
+            // No server RPC for van sales yet: read-modify-write of the rep's items array.
+            // Not atomic - two simultaneous field sales by the same rep could race.
+            const sb = getSupabase();
+            const companyId = getActiveCompanyId();
+            const { data: van, error } = await sb.from('van_inventory').select('id,items')
+                .eq('company_id', companyId).eq('rep_id', String(employeeId)).limit(1).maybeSingle();
+            if (error) throw error;
+            if (!van) throw new Error('عهدة المندوب غير موجودة.');
+            let found = false;
+            const items = (van.items || []).map((item) => {
+                if ((item.product_id || item.id) !== productId) return item;
+                found = true;
+                const next = (Number(item.quantity) || 0) - Number(soldQty);
+                if (next < 0) throw new Error('الكمية المباعة أكبر من عهدة المندوب.');
+                return { ...item, quantity: next };
+            });
+            if (!found) throw new Error('الصنف غير موجود في عهدة المندوب.');
+            const { error: updateError } = await sb.from('van_inventory')
+                .update({ items, updated_at: new Date().toISOString() }).eq('id', van.id).eq('company_id', companyId);
+            if (updateError) throw updateError;
+            return { success: true };
+        }
         const vanDocId = `${employeeId}_${productId}`;
         const vanRef = doc(db, "van_inventory", vanDocId);
         await updateDoc(vanRef, {

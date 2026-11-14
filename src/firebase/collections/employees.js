@@ -1,5 +1,5 @@
 import { db } from '../firebaseConfig';
-import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from "@/data/firestoreCompat";
 import { fetchTenantDocs, withTenant } from '@/lib/tenantFirestore';
 
 export const addNewEmployee = async (employeeData) => {

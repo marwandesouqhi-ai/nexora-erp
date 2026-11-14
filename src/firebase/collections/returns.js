@@ -1,12 +1,28 @@
 import { db } from "../firebaseConfig";
 import { collection, doc, increment, serverTimestamp, runTransaction } from "firebase/firestore";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
 
 // دالة تسجيل عملية مرتجع (مبيعات)
 export const createReturnInvoice = async (returnData) => {
     try {
         if (!returnData.salesId || !Array.isArray(returnData.items) || returnData.items.length === 0) {
             throw new Error('يجب اختيار فاتورة وصنف مرتجع واحد على الأقل.');
+        }
+
+        if (isSupabaseBackend) {
+            const result = await callRpc('process_return', {
+                payload: {
+                    salesId: returnData.salesId,
+                    items: returnData.items.map((item) => ({
+                        product_id: item.id ?? item.product_id,
+                        quantity: Number(item.qty ?? item.quantity),
+                    })),
+                    reason: returnData.reason ?? returnData.notes ?? '',
+                },
+            });
+            return { success: true, id: result.id, refund_amount: Number(result.refund_amount) };
         }
 
         const id = await runTransaction(db, async (transaction) => {

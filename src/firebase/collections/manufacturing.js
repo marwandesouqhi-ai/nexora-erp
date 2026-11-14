@@ -1,12 +1,36 @@
 import { db } from "../firebaseConfig";
 import { collection, addDoc, doc, increment, serverTimestamp, runTransaction } from "firebase/firestore";
 import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
+import { isSupabaseBackend } from "@/api/backend";
+import { callRpc } from "@/data/supabaseRpc";
+import { insertRow } from "@/data/supabaseTenantDb";
 
 // إنشاء أمر تصنيع/إنتاج جديد
 // materials: [{ product_id, product_name, qty_used }]
 // finishedProduct: { product_id, product_name, qty_produced }
+// Firestore shape (materials / finished_product_*) <-> manufacturing_orders columns.
+const toProductionOrder = (row) => ({
+    ...row,
+    materials: row.raw_materials || [],
+    finished_product_id: row.product_id || row.finished_product_id || '',
+    finished_product_name: row.product_name || row.finished_product_name || '',
+    qty_produced: Number(row.quantity ?? row.qty_produced ?? 0),
+});
+
 export const createProductionOrder = async (orderData) => {
     try {
+        if (isSupabaseBackend) {
+            const { id } = await insertRow('production_orders', {
+                order_number: orderData.orderNumber || `PRD-${Date.now()}`,
+                raw_materials: orderData.materials || [],
+                product_id: orderData.finishedProduct?.product_id || '',
+                product_name: orderData.finishedProduct?.product_name || '',
+                quantity: Number(orderData.finishedProduct?.qty_produced) || 0,
+                status: 'pending',
+                notes: orderData.notes || '',
+            });
+            return { success: true, id };
+        }
         const orderRef = await addDoc(collection(db, "production_orders"), withTenant({
             order_number: orderData.orderNumber || `PRD-${Date.now()}`,
             materials: orderData.materials || [],
@@ -28,6 +52,10 @@ export const createProductionOrder = async (orderData) => {
 // اعتماد أمر التصنيع: خصم الخامات من المخزن وإضافة المنتج التام
 export const completeProductionOrder = async (order) => {
     try {
+        if (isSupabaseBackend) {
+            await callRpc('complete_production', { order_id: order.id });
+            return { success: true };
+        }
         await runTransaction(db, async (transaction) => {
             const orderRef = doc(db, "production_orders", order.id);
             const orderSnap = await transaction.get(orderRef);
@@ -114,6 +142,10 @@ export const completeProductionOrder = async (order) => {
 
 export const getProductionOrders = async (companyId = null) => {
     try {
+        if (isSupabaseBackend) {
+            const rows = await fetchTenantDocs("production_orders", { companyId });
+            return rows.map(toProductionOrder);
+        }
         return await fetchTenantDocs("production_orders", {
             companyId,
             sortFn: (a, b) => {

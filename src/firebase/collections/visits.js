@@ -1,4 +1,4 @@
-import { onSnapshot } from "firebase/firestore";
+import { onSnapshot } from "@/data/firestoreCompat";
 import { fetchTenantDocs, createTenantQuery } from "@/lib/tenantFirestore";
 
 const VISITS_COLLECTION = "visits";

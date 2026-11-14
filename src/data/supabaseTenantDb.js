@@ -28,6 +28,12 @@ const columnsOf = (table) => TABLE_COLUMNS[table] || null;
 const isFieldValueSentinel = (v) =>
     v && typeof v === 'object' && typeof v._methodName === 'string';
 
+/** Firestore increment(n): the operand, or null for any other value. */
+const incrementOperand = (v) =>
+    isFieldValueSentinel(v) && v._methodName === 'increment' && Number.isFinite(Number(v._operand))
+        ? Number(v._operand)
+        : null;
+
 function toDomainRow(table, row) {
     const cols = columnsOf(table) || {};
     const out = {};
@@ -56,14 +62,18 @@ function toDbPayload(table, data) {
     if (!cols) throw new Error(`Table "${table}" is not mapped to Supabase yet.`);
     const columns = {};
     const metadata = {};
+    const increments = {}; // key -> operand, applied by read-modify-write (NOT atomic)
     for (const [key, raw] of Object.entries(data)) {
-        if (raw === undefined || isFieldValueSentinel(raw)) continue;
+        if (raw === undefined) continue;
         if (key === 'id' || key === 'company_id') continue;
+        const operand = incrementOperand(raw);
+        if (operand !== null) { increments[key] = operand; continue; }
+        if (isFieldValueSentinel(raw)) continue; // serverTimestamp() etc.: the DB sets timestamps
         const value = normaliseValue(raw);
         if (key in cols && key !== 'metadata') columns[key] = value;
         else metadata[key] = value;
     }
-    return { columns, metadata };
+    return { columns, metadata, increments };
 }
 
 /** Maps a legacy Firestore id or a uuid to a PostgREST filter. */
@@ -71,6 +81,7 @@ const idFilter = (id) => (isUuid(id) ? ['id', id] : ['legacy_firebase_id', Strin
 
 export async function fetchRows(collectionName, { companyId = null } = {}) {
     const table = resolveTable(collectionName);
+    if (!columnsOf(table)) return []; // collection has no Supabase table (yet)
     const active = getActiveCompanyId();
     const requested = typeof companyId === 'string' ? companyId : null;
     if (!active || (requested && requested !== active)) return [];
@@ -91,18 +102,22 @@ export async function fetchRowById(collectionName, id) {
     return data ? toDomainRow(table, data) : null;
 }
 
-export async function insertRow(collectionName, data) {
+export async function insertRow(collectionName, data, { id: explicitId } = {}) {
     const table = resolveTable(collectionName);
     const companyId = getActiveCompanyId();
     if (!companyId) throw new Error('لا توجد شركة نشطة. لا يمكن تنفيذ عملية على بيانات الشركة.');
-    const { columns, metadata } = toDbPayload(table, data);
+    const { columns, metadata, increments } = toDbPayload(table, data);
     const cols = columnsOf(table);
     const sb = getSupabase();
+    for (const [key, operand] of Object.entries(increments)) {
+        if (key in cols) columns[key] = operand;
+        else metadata[key] = operand;
+    }
     if (cols.created_by && !columns.created_by) {
         const { data: sess } = await sb.auth.getSession();
         if (sess?.session?.user?.id) columns.created_by = sess.session.user.id;
     }
-    const row = { ...columns, company_id: companyId, metadata };
+    const row = { ...columns, company_id: companyId, metadata, ...(explicitId ? { id: explicitId } : {}) };
     const { data: inserted, error } = await sb.from(table).insert(row).select('id').single();
     if (error) throw error;
     return { id: inserted.id };
@@ -113,19 +128,34 @@ export async function upsertRow(collectionName, docId, data) {
     if (!companyId) throw new Error('لا توجد شركة نشطة. لا يمكن تنفيذ عملية على بيانات الشركة.');
     const existing = await fetchRowById(collectionName, docId);
     if (existing) return updateRow(collectionName, existing.id, data);
-    const { id } = await insertRow(collectionName, {
-        ...data,
-        ...(isUuid(docId) ? {} : { legacy_firebase_id: String(docId) }),
-    });
+    const { id } = await insertRow(
+        collectionName,
+        { ...data, ...(isUuid(docId) ? {} : { legacy_firebase_id: String(docId) }) },
+        isUuid(docId) ? { id: docId } : {}
+    );
     return { id };
 }
 
 export async function updateRow(collectionName, id, data) {
     const table = resolveTable(collectionName);
-    const { columns, metadata } = toDbPayload(table, data);
+    const { columns, metadata, increments } = toDbPayload(table, data);
     const sb = getSupabase();
     const [col, val] = idFilter(id);
     const patch = { ...columns, updated_at: new Date().toISOString() };
+    if (Object.keys(increments).length) {
+        // No server-side increment from the client: read the row and add. Financial
+        // balances must use the RPCs; this path is only for low-contention counters.
+        const { data: current, error: incError } = await sb.from(table).select('*')
+            .eq('company_id', getActiveCompanyId()).eq(col, val).maybeSingle();
+        if (incError) throw incError;
+        if (!current) throw new Error('Document not found');
+        const flat = toDomainRow(table, current);
+        for (const [key, operand] of Object.entries(increments)) {
+            const next = (Number(flat[key]) || 0) + operand;
+            if (key in columnsOf(table)) patch[key] = next;
+            else metadata[key] = next;
+        }
+    }
     if (Object.keys(metadata).length) {
         // Merge into the existing metadata instead of replacing it.
         const { data: row, error: readError } = await sb.from(table).select('metadata')
