@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { changePassword } from '../services/authService';
 import { getSystemSettings, updateSystemSettings } from '../services/settingsService';
 import type { SystemSettings } from '../services/settingsService';
 import { getCompanies } from '../services/companiesService';
@@ -54,10 +54,7 @@ export function Settings() {
     
     setSecurityLoading(true);
     try {
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      
-      await updatePassword(user, newPassword);
+      await changePassword(user.email, currentPassword, newPassword);
       setSecurityMsg({ text: 'تم تحديث كلمة المرور بنجاح', type: 'success' });
       setCurrentPassword('');
       setNewPassword('');
