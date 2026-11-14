@@ -25,7 +25,9 @@ const withAcceptUrl = (result) => (result?.token ? { ...result, accept_url: acce
 
 // Firebase callable name -> { fn, action, request?, response? } | { unsupported }
 const SUPABASE_ROUTES = {
-    createInvitation: { fn: 'company-invitations', action: 'create', response: withAcceptUrl },
+    // invite-user sends the e-mail through Supabase Auth (project SMTP). company-invitations only
+    // returns a one-time link, so it stays in use for resend / revoke / list of older invitations.
+    createInvitation: { fn: 'invite-user', action: 'invite' },
     resendInvitation: { fn: 'company-invitations', action: 'resend', response: withAcceptUrl },
     revokeInvitation: { fn: 'company-invitations', action: 'revoke' },
     listManagedInvitations: { fn: 'company-invitations', action: 'list' },

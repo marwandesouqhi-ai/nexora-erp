@@ -1,7 +1,7 @@
 # Edge Functions
 
 The project `nexora-erp` (ref `lejtflygvbakfbiwwhea`) already has these functions **deployed**.
-Their source is not in this repo yet. Download it before changing anything:
+Only `invite-user` has its source in this repo (`invite-user/index.ts`); for the others: Download it before changing anything:
 
 ```bash
 npx supabase functions download company-invitations
@@ -12,6 +12,7 @@ npx supabase functions download owner-bootstrap
 
 | Function | Actions | Used by |
 |---|---|---|
+| `invite-user` | `invite`, `resend` | ERP: `src/api/functions.js` (sends the invite e-mail through Supabase Auth; source in this folder) |
 | `company-invitations` | `create`, `resend`, `revoke`, `list`, `verify`, `accept`, `update_user` | ERP: `src/api/functions.js` |
 | `erp-integrations` | `assistant` (Gemini), `whatsapp_send`, `whatsapp_status` | ERP: `src/api/functions.js`, `geminiService.js` |
 | `platform-admin` | `provision_company`, `provision_company_owner`, `resend_owner_invitation`, `provision_staff`, `update_staff`, `suspend_staff`, `log_action` | CRM: `crm-admin/src/lib/functions.ts` |
