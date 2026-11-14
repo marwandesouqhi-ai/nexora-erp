@@ -1,0 +1,16 @@
+{
+  "name": "nexora-firebase-to-supabase",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "One-off ETL: Firestore + Firebase Auth -> Supabase (Postgres + Auth). Run outside the app bundle.",
+  "scripts": {
+    "dry-run": "node migrate.mjs",
+    "migrate": "node migrate.mjs --apply",
+    "verify": "node migrate.mjs --verify"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "firebase-admin": "^12.4.0"
+  }
+}

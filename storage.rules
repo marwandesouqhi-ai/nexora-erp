@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// ⚠️ رفع هذا الملف (firebase deploy --only storage) يستبدل قواعد Storage الموجودة حالياً في Firebase Console بالكامل.
+//    راجع قواعد الـ Console قبل الرفع وتأكد إن أي مسار مستخدم فعلاً موجود هنا.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userData() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return userData().get('role', '');
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && (role() == 'super_admin' || userData().get('is_super_admin', false) == true);
+    }
+
+    // فريق المنصة (لوحة إدارة المنصة crm-admin) — هوية منفصلة في platform_staff
+    function staffPath() {
+      return /databases/(default)/documents/platform_staff/$(request.auth.uid);
+    }
+
+    function isActivePlatformStaff() {
+      return signedIn()
+        && firestore.exists(staffPath())
+        && firestore.get(staffPath()).data.get('role', '') in ['platform_admin', 'billing_admin', 'support_agent']
+        && firestore.get(staffPath()).data.get('is_active', true) == true
+        && firestore.get(staffPath()).data.get('status', 'active') != 'suspended';
+    }
+
+    function isPlatformStaff() {
+      return isActivePlatformStaff() || isSuperAdmin();
+    }
+
+    function isPlatformAdmin() {
+      return isActivePlatformStaff() && firestore.get(staffPath()).data.get('role', '') == 'platform_admin';
+    }
+
+    // أدمن الشركة (owner / admin / general_manager) لنفس الشركة، وحسابه نشط
+    function isCompanyAdminOf(companyId) {
+      return signedIn()
+        && userData().get('company_id', '') == companyId
+        && role() in ['owner', 'admin', 'general_manager']
+        && userData().get('is_active', true) == true
+        && !(userData().get('status', 'active') in ['inactive', 'suspended', 'revoked']);
+    }
+
+    // صور، PDF، Word، Excel، TXT، CSV — حتى 10MB
+    function validAttachment() {
+      return request.resource.size <= 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/msword'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          || request.resource.contentType == 'application/vnd.ms-excel'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          || request.resource.contentType == 'text/plain'
+          || request.resource.contentType == 'text/csv');
+    }
+
+    // مرفقات التذاكر: يراها ويرفعها فريق المنصة + أدمن الشركة صاحبة التذكرة فقط
+    match /support_tickets/{companyId}/{ticketId}/{fileName} {
+      // أدمن الشركة يرفع داخل مجلد شركته فقط (companyId في المسار = شركته)
+      allow read: if isCompanyAdminOf(companyId) || isPlatformStaff();
+      allow create: if validAttachment()
+        && (isCompanyAdminOf(companyId) || isPlatformStaff());
+      allow update, delete: if isPlatformAdmin() || isSuperAdmin();
+    }
+
+    // مرفقات الملاحظات الداخلية: فريق المنصة فقط
+    match /support_tickets_internal/{ticketId}/{fileName} {
+      allow read: if isPlatformStaff();
+      allow create: if isPlatformStaff() && validAttachment();
+      allow update, delete: if isPlatformAdmin() || isSuperAdmin();
+    }
+
+    // ملفات إعدادات الفواتير الحالية (لوجو الفاتورة وقالبها) — نفس سلوك الرفع الحالي في النظام
+    match /settings/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

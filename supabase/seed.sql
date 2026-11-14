@@ -1,0 +1,4 @@
+-- Local development seed data, loaded by `npm run sb:reset`.
+-- Filled in during Phase 1 (schema): a demo company, one user per role,
+-- and a few products/customers for manual testing.
+-- Never put production data or real credentials here.

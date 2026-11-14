@@ -1,5 +1,5 @@
 import * as React from "react"
-import { db } from "@/firebase/config" // تأكد من مسار الفايربيز عندك
+import { db } from "@/api/firebase"
 import { doc, updateDoc } from "firebase/firestore"
 import { useAuth } from "@/lib/AuthContext"
 

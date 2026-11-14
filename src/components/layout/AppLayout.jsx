@@ -1,38 +1,52 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import Header from './Header';
-import { RoleProvider } from '@/lib/RoleContext';
-import { useNotifications } from '@/hooks/useNotifications'; // الـ Hook اللي هيراقب المخزون والنشاط
+import { useState, useEffect, useCallback } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import TopBar from './TopBar';
+import GroupTabs from './GroupTabs';
+import ModulesPortal from './ModulesPortal';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function AppLayout() {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [portalOpen, setPortalOpen] = useState(false);
+    const location = useLocation();
 
-    // تفعيل مراقبة التنبيهات (المخزون + الواتساب) بمجرد فتح التطبيق
     useNotifications();
 
+    // ── Close portal on route change & scroll to top ─────────────────────────
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setPortalOpen(false);
+            window.scrollTo({ top: 0 });
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [location.pathname]);
+
+    // ── Global Ctrl+K / Cmd+K shortcut ───────────────────────────────────────
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                setPortalOpen((prev) => !prev);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    const openPortal = useCallback(() => setPortalOpen(true), []);
+    const closePortal = useCallback(() => setPortalOpen(false), []);
+
     return (
-        <RoleProvider>
-            <div className="flex h-screen bg-background overflow-hidden" dir="rtl">
-                {/* Sidebar - القائمة الجانبية */}
-                <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <div className="flex h-screen flex-col overflow-hidden" dir="rtl">
+            <TopBar onPortalToggle={openPortal} />
+            <GroupTabs />
 
-                {/* Main Content - المحتوى الرئيسي */}
-                {/* ملحوظة: lg:mr-64 تضمن عدم تداخل المحتوى مع السايدبار في الشاشات الكبيرة */}
-                <div className="flex-1 flex flex-col min-w-0 lg:mr-64 overflow-hidden transition-all duration-300">
-
-                    {/* Header - أضفنا له خاصية فتح المنيو */}
-                    <Header onMenuToggle={() => setSidebarOpen(true)} />
-
-                    {/* Main Area - هنا تعرض الصفحات مثل Dashboard و Inventory */}
-                    <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-slate-50/50">
-                        <div className="max-w-7xl mx-auto">
-                            <Outlet />
-                        </div>
-                    </main>
-
+            <main id="main-content" className="flex-1 overflow-y-auto p-4 lg:p-6">
+                <div className="mx-auto max-w-[1400px]">
+                    <Outlet />
                 </div>
-            </div>
-        </RoleProvider>
+            </main>
+
+            <ModulesPortal open={portalOpen} onClose={closePortal} />
+        </div>
     );
 }

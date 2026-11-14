@@ -1,17 +1,14 @@
-import { db } from "@/api/firebase";
+import { db } from "../firebaseConfig";
 import {
     collection,
     addDoc,
     doc,
     getDoc,
-    getDocs,
-    query,
-    where,
-    orderBy,
     updateDoc,
     deleteDoc,
     serverTimestamp,
-} from "firebase/firestore";
+} from "@/data/firestoreCompat";
+import { fetchTenantDocs, withTenant } from "@/lib/tenantFirestore";
 
 const suppliersCollection = collection(db, "suppliers");
 
@@ -19,7 +16,7 @@ const suppliersCollection = collection(db, "suppliers");
 export const addNewSupplier = async (supplierData) => {
     try {
         const normalizedBalance = Number(supplierData.current_balance) || 0;
-        const newSupplier = {
+        const newSupplier = withTenant({
             name: supplierData.name?.trim() || "",
             company: supplierData.company?.trim() || "",
             whatsapp: supplierData.whatsapp?.trim() || "",
@@ -34,7 +31,7 @@ export const addNewSupplier = async (supplierData) => {
             created_at: serverTimestamp(),
             updated_at: serverTimestamp(),
             last_transaction_date: null,
-        };
+        });
 
         const docRef = await addDoc(suppliersCollection, newSupplier);
         return { success: true, id: docRef.id };
@@ -45,11 +42,12 @@ export const addNewSupplier = async (supplierData) => {
 };
 
 // دالة جلب كل الموردين مرتبة بالاسم
-export const getSuppliers = async () => {
+export const getSuppliers = async (companyId = null) => {
     try {
-        const q = query(suppliersCollection, orderBy("name"));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        return await fetchTenantDocs("suppliers", {
+            companyId,
+            sortFn: (a, b) => (a.name || "").localeCompare(b.name || ""),
+        });
     } catch (error) {
         console.error("Error getting suppliers: ", error);
         return [];
@@ -57,11 +55,13 @@ export const getSuppliers = async () => {
 };
 
 // دالة جلب الموردين النشطين فقط
-export async function getActiveSuppliers() {
+export async function getActiveSuppliers(companyId = null) {
     try {
-        const q = query(suppliersCollection, where("is_active", "==", true), orderBy("name"));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        return await fetchTenantDocs("suppliers", {
+            companyId,
+            filterFn: (s) => s.is_active !== false,
+            sortFn: (a, b) => (a.name || "").localeCompare(b.name || ""),
+        });
     } catch (error) {
         console.error("Error getting active suppliers: ", error);
         return [];
